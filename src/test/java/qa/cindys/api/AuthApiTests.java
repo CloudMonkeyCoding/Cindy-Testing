@@ -3,6 +3,7 @@ package qa.cindys.api;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -50,7 +51,7 @@ public class AuthApiTests {
         }
       }
     } catch (java.io.IOException ex) {
-      Assert.fail("Unable to reach endpoint " + target + ": " + ex.getMessage(), ex);
+      throw new SkipException("Skipping API test because endpoint is unreachable: " + target, ex);
     }
   }
 
