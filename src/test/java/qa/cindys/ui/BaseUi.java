@@ -35,7 +35,7 @@ public class BaseUi {
   protected final String VALID_EMAIL       = propOrDefault("validEmail", "ejquancey@gmail.com");
   protected final String VALID_PASSWORD    = propOrDefault("validPassword","pass-123");
   protected final String UNREGISTERED_EMAIL= propOrDefault("unregisteredEmail","nope@example.com");
-  protected final boolean HEADLESS_MODE    = boolProp("headless", true);
+  protected final boolean HEADLESS_MODE    = boolProp("headless", false);
   protected final String CHROME_BINARY     = propOrDefault("chromeBinary", "");
   protected final String EXTRA_CHROME_ARGS = propOrDefault("chromeArgs", "");
 
