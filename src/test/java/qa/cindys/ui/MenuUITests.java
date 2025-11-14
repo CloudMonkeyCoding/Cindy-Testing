@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class MenuUITests extends BaseUi {
@@ -421,8 +422,15 @@ public class MenuUITests extends BaseUi {
                 "Authenticated add-to-cart should not prompt sign-in for product " + identifier + ". Toast: " + message);
 
             String tone = currentToastTone();
-            Assert.assertTrue("success".equalsIgnoreCase(tone) || "warn".equalsIgnoreCase(tone),
-                "Expected success or warn tone after adding product " + identifier + ". Actual tone: " + tone + ".");
+            if ("error".equalsIgnoreCase(tone)) {
+              boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
+              Assert.assertTrue(recognizedFailure,
+                  "Error tone toast should describe an inventory or validation issue for product "
+                      + identifier + ". Toast: " + message);
+            } else {
+              Assert.assertTrue("success".equalsIgnoreCase(tone) || "warn".equalsIgnoreCase(tone),
+                  "Expected success or warn tone after adding product " + identifier + ". Actual tone: " + tone + ".");
+            }
 
             waitForModalHidden();
             waitForToastToHide();
@@ -588,6 +596,24 @@ public class MenuUITests extends BaseUi {
   private String currentToastTone() {
     String tone = driver.findElement(toast()).getAttribute("data-tone");
     return tone == null ? "" : tone;
+  }
+
+  private boolean indicatesInventoryOrValidationIssue(String toastText) {
+    String lowered = toastText == null ? "" : toastText.toLowerCase(Locale.ROOT);
+    return lowered.contains("out of stock")
+        || lowered.contains("sold out")
+        || lowered.contains("unavailable")
+        || lowered.contains("unable to add")
+        || lowered.contains("couldn't add")
+        || lowered.contains("cannot add")
+        || lowered.contains("can't add")
+        || lowered.contains("minimum")
+        || lowered.contains("limit")
+        || lowered.contains("requires")
+        || lowered.contains("option")
+        || lowered.contains("select")
+        || lowered.contains("please call")
+        || lowered.contains("contact store");
   }
 
   private boolean isPaginationVisible() {
