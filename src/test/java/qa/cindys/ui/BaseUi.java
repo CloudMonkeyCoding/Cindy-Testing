@@ -30,17 +30,31 @@ public class BaseUi {
   protected final String BASE_URL        = propOrDefault("baseUrl",  "http://localhost:3000");
   protected final String LOGIN_PATH      = propOrDefault("loginPage","/UserSide/login.html");
   protected final String MENU_PATH       = propOrDefault("menuPage", "/UserSide/PRODUCT/MENU.php");
+  protected final String CART_PATH       = propOrDefault("cartPage", "/UserSide/CART/cart_checkout_page.php");
+  protected final String ADMIN_LOGIN_PATH     = propOrDefault("adminLoginPage", "/adminSide/login.php");
+  protected final String ADMIN_DASHBOARD_PATH = propOrDefault("adminDashboardPage", "/adminSide/dashboard.php");
+  protected final String ADMIN_ORDERS_PATH    = propOrDefault("adminOrdersPage", "/adminSide/orders.php");
+  protected final String ADMIN_PRODUCTS_PATH  = propOrDefault("adminProductsPage", "/adminSide/products.php");
+  protected final String ADMIN_LOGOUT_PATH    = propOrDefault("adminLogoutPage", "/adminSide/logout.php");
 
   // Test data (override with -DvalidEmail=... -DvalidPassword=... if you want)
   protected final String VALID_EMAIL       = propOrDefault("validEmail", "ejquancey@gmail.com");
   protected final String VALID_PASSWORD    = propOrDefault("validPassword","pass-123");
   protected final String UNREGISTERED_EMAIL= propOrDefault("unregisteredEmail","nope@example.com");
+  protected final String ADMIN_EMAIL       = propOrDefault("adminEmail", "");
+  protected final String ADMIN_PASSWORD    = propOrDefault("adminPassword", "");
   protected final boolean HEADLESS_MODE    = boolProp("headless", false);
   protected final String CHROME_BINARY     = propOrDefault("chromeBinary", "");
   protected final String EXTRA_CHROME_ARGS = propOrDefault("chromeArgs", "");
 
   protected String loginUrl() { return toAbsolute(LOGIN_PATH); }
   protected String menuUrl()  { return toAbsolute(MENU_PATH); }
+  protected String cartUrl()  { return toAbsolute(CART_PATH); }
+  protected String adminLoginUrl() { return toAbsolute(ADMIN_LOGIN_PATH); }
+  protected String adminDashboardUrl() { return toAbsolute(ADMIN_DASHBOARD_PATH); }
+  protected String adminOrdersUrl() { return toAbsolute(ADMIN_ORDERS_PATH); }
+  protected String adminProductsUrl() { return toAbsolute(ADMIN_PRODUCTS_PATH); }
+  protected String adminLogoutUrl() { return toAbsolute(ADMIN_LOGOUT_PATH); }
   protected final String signup = System.getProperty("signupPage", "/UserSide/signup.html");
   protected String effectiveSignupUrl() { return BASE_URL + signup; }
 
