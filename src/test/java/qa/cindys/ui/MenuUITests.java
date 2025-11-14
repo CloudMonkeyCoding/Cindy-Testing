@@ -1,15 +1,18 @@
 package qa.cindys.ui;
 
+import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.ElementClickInterceptedException;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
+import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.UnhandledAlertException;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -105,6 +108,12 @@ public class MenuUITests extends BaseUi {
   private By checkoutPaymentSelect() { return By.id("mop"); }
   private By checkoutPlaceOrderButton() { return By.id("place-order-btn"); }
   private By checkoutConfirmationMessage() { return By.id("confirmationMsg"); }
+  private By sweetAlertContainer() { return By.cssSelector(".swal2-container"); }
+  private By sweetAlertPopup() { return By.cssSelector(".swal2-popup"); }
+  private By sweetAlertTitle() { return By.cssSelector(".swal2-popup .swal2-title"); }
+  private By sweetAlertContent() { return By.cssSelector(".swal2-popup .swal2-html-container"); }
+  private By sweetAlertConfirmButton() { return By.cssSelector(".swal2-popup .swal2-confirm"); }
+  private By sweetAlertIcon() { return By.cssSelector(".swal2-popup .swal2-icon"); }
 
   private static final Pattern MAX_AVAILABLE_PATTERN = Pattern.compile("maximum available:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
   private static final Pattern IN_CART_PATTERN = Pattern.compile("in cart:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -990,49 +999,179 @@ public class MenuUITests extends BaseUi {
   }
 
   private OrderAttemptResult awaitOrderAttempt(Duration timeout, String initialUrl) {
+    WebDriverWait wait = new WebDriverWait(driver, timeout);
+    wait.ignoring(StaleElementReferenceException.class);
     try {
-      return new WebDriverWait(driver, timeout).until(d -> {
-        String current = d.getCurrentUrl();
-        if (!current.equals(initialUrl) && current.contains("orderDetails")) {
-          return OrderAttemptResult.redirect(current);
+      return wait.until(d -> {
+        try {
+          return detectCheckoutFeedback(initialUrl);
+        } catch (UnhandledAlertException ignored) {
+          return detectCheckoutAlertFeedback();
         }
-
-        WebElement confirmation = textElementIfPresent(checkoutConfirmationMessage());
-        if (confirmation != null) {
-          String text = confirmation.getText();
-          if (text != null && !text.trim().isEmpty()) {
-            boolean error = hasClass(confirmation, "error");
-            return OrderAttemptResult.message(text.trim(), error);
-          }
-        }
-
-        WebElement toastElement = textElementIfPresent(toast());
-        if (toastElement != null) {
-          String classes = toastElement.getAttribute("class");
-          String text = toastElement.getText();
-          if (classes != null && classes.contains("show") && text != null && !text.trim().isEmpty()) {
-            String tone = toastElement.getAttribute("data-tone");
-            boolean error = tone != null && tone.toLowerCase(Locale.ROOT).contains("error");
-            if (!error && tone != null) {
-              error = tone.toLowerCase(Locale.ROOT).contains("danger");
-            }
-            if (!error) {
-              String lowered = text.trim().toLowerCase(Locale.ROOT);
-              error = lowered.contains("fail")
-                  || lowered.contains("error")
-                  || lowered.contains("unable")
-                  || lowered.contains("cannot")
-                  || lowered.contains("can't");
-            }
-            return OrderAttemptResult.message(text.trim(), error);
-          }
-        }
-
-        return null;
       });
     } catch (TimeoutException ex) {
+      OrderAttemptResult alertResult = detectCheckoutAlertFeedback();
+      if (alertResult != null) {
+        return alertResult;
+      }
+
+      OrderAttemptResult residual = detectCheckoutFeedback(initialUrl);
+      if (residual != null) {
+        return residual;
+      }
+
+      return OrderAttemptResult.message(
+          "No visible order feedback after waiting " + timeout.getSeconds() + " seconds.", true);
+    }
+  }
+
+  private OrderAttemptResult detectCheckoutFeedback(String initialUrl) {
+    OrderAttemptResult alertResult = detectCheckoutAlertFeedback();
+    if (alertResult != null) {
+      return alertResult;
+    }
+
+    String currentUrl;
+    try {
+      currentUrl = driver.getCurrentUrl();
+    } catch (UnhandledAlertException ex) {
+      return detectCheckoutAlertFeedback();
+    }
+
+    if (!currentUrl.equals(initialUrl) && currentUrl.contains("orderDetails")) {
+      return OrderAttemptResult.redirect(currentUrl);
+    }
+
+    WebElement confirmation = textElementIfPresent(checkoutConfirmationMessage());
+    if (confirmation != null && isVisible(confirmation)) {
+      String text = trimToNull(confirmation.getText());
+      if (text != null) {
+        boolean error = hasClass(confirmation, "error");
+        return OrderAttemptResult.message(text, error);
+      }
+    }
+
+    OrderAttemptResult sweetAlert = detectSweetAlertFeedback();
+    if (sweetAlert != null) {
+      return sweetAlert;
+    }
+
+    WebElement toastElement = textElementIfPresent(toast());
+    if (toastElement != null) {
+      String text = trimToNull(toastElement.getText());
+      if (text != null) {
+        String classes = toastElement.getAttribute("class");
+        boolean showing = isVisible(toastElement);
+        if (!showing && classes != null) {
+          showing = classes.contains("show") || classes.contains("visible") || classes.contains("fade-in");
+        }
+        String ariaHidden = toastElement.getAttribute("aria-hidden");
+        if (!showing && ariaHidden != null) {
+          showing = !"true".equalsIgnoreCase(ariaHidden.trim());
+        }
+        if (showing) {
+          String tone = toastElement.getAttribute("data-tone");
+          boolean error = false;
+          if (tone != null) {
+            String loweredTone = tone.toLowerCase(Locale.ROOT);
+            error = loweredTone.contains("error")
+                || loweredTone.contains("danger")
+                || loweredTone.contains("fail")
+                || loweredTone.contains("denied");
+          }
+          if (!error) {
+            String lowered = text.toLowerCase(Locale.ROOT);
+            error = lowered.contains("fail")
+                || lowered.contains("error")
+                || lowered.contains("unable")
+                || lowered.contains("cannot")
+                || lowered.contains("can't")
+                || lowered.contains("denied");
+          }
+          return OrderAttemptResult.message(text, error);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private OrderAttemptResult detectCheckoutAlertFeedback() {
+    try {
+      Alert alert = driver.switchTo().alert();
+      String text = trimToNull(alert.getText());
+      alert.accept();
+      String message = text == null ? "A browser alert interrupted checkout." : text;
+      return OrderAttemptResult.message(message, true);
+    } catch (NoAlertPresentException ignored) {
       return null;
     }
+  }
+
+  private OrderAttemptResult detectSweetAlertFeedback() {
+    WebElement container = textElementIfPresent(sweetAlertContainer());
+    if (container == null || !isVisible(container)) {
+      return null;
+    }
+
+    WebElement popup;
+    try {
+      popup = container.findElement(sweetAlertPopup());
+    } catch (NoSuchElementException ex) {
+      return null;
+    }
+
+    if (!isVisible(popup)) {
+      return null;
+    }
+
+    StringBuilder message = new StringBuilder();
+    WebElement title = textElementIfPresent(sweetAlertTitle());
+    if (title != null && isVisible(title)) {
+      String text = trimToNull(title.getText());
+      if (text != null) {
+        message.append(text);
+      }
+    }
+
+    WebElement content = textElementIfPresent(sweetAlertContent());
+    if (content != null && isVisible(content)) {
+      String text = trimToNull(content.getText());
+      if (text != null) {
+        if (message.length() > 0) {
+          message.append(" - ");
+        }
+        message.append(text);
+      }
+    }
+
+    boolean error = false;
+    WebElement icon = textElementIfPresent(sweetAlertIcon());
+    if (icon != null) {
+      String iconClasses = icon.getAttribute("class");
+      if (iconClasses != null) {
+        String lowered = iconClasses.toLowerCase(Locale.ROOT);
+        error = lowered.contains("error") || lowered.contains("warning") || lowered.contains("danger");
+      }
+    }
+
+    try {
+      WebElement confirm = popup.findElement(sweetAlertConfirmButton());
+      if (confirm != null && confirm.isDisplayed() && confirm.isEnabled()) {
+        confirm.click();
+      }
+    } catch (NoSuchElementException ignored) {
+      // Dialog might auto-dismiss or not require confirmation.
+    } catch (WebDriverException ignored) {
+      // Ignore click issues when dismissing informational dialogs.
+    }
+
+    String text = trimToNull(message.toString());
+    if (text == null) {
+      text = "Checkout dialog appeared without descriptive text.";
+    }
+
+    return OrderAttemptResult.message(text, error);
   }
 
   private void clearSearch(WebElement input) {
