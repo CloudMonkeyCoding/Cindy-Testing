@@ -13,6 +13,12 @@ public class AuthUITests extends BaseUi {
 private WebDriverWait uiWait(long seconds) {
   return new WebDriverWait(driver, Duration.ofSeconds(seconds));
 }
+
+private void openLoginPage() {
+  driver.get(loginUrl());
+  waitForDocumentReady(Duration.ofSeconds(12));
+  uiWait(12).until(ExpectedConditions.visibilityOfElementLocated(email()));
+}
   // Match your actual DOM (id="email", id="password", form button[type=submit], #errorMessage, etc.)
   private By email()         { return By.cssSelector("#email, [data-testid='email']"); }
   private By password()      { return By.cssSelector("#password, [data-testid='password']"); }
@@ -32,13 +38,9 @@ private WebDriverWait uiWait(long seconds) {
   /** 1) Missing credentials shows an error (custom banner OR native HTML5 bubble) */
 @Test(priority = 1)
 public void missingCredentials_validationShown() {
-  driver.get(loginUrl());
+  openLoginPage();
 
-  // Ensure DOM ready
-  uiWait(10).until(d ->
-      ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
-
-  WebElement email = uiWait(10).until(ExpectedConditions.visibilityOfElementLocated(email()));
+  WebElement email = driver.findElement(email());
   WebElement pw    = driver.findElement(password());
   WebElement btn   = driver.findElement(signInBtn());
 
@@ -90,10 +92,10 @@ public void missingCredentials_validationShown() {
 
 
   /** 2) Wrong password surfaces a friendly error (we accept any Firebase-ish message) */
-  @Test(priority = 2)
+@Test(priority = 2)
   public void wrongPassword_showsFriendlyError() {
-    driver.get(loginUrl());
-    uiWait(10).until(ExpectedConditions.visibilityOfElementLocated(email())).sendKeys(VALID_EMAIL);
+    openLoginPage();
+    driver.findElement(email()).sendKeys(VALID_EMAIL);
     driver.findElement(password()).sendKeys("WrongPass!23");
     driver.findElement(signInBtn()).click();
 
@@ -105,8 +107,8 @@ public void missingCredentials_validationShown() {
   /** 3) Successful login leaves the login page (and ideally hits MENU) */
   @Test(priority = 3)
   public void loginSuccess_redirectsToMenu() {
-    driver.get(loginUrl());
-    WebElement emailInput = uiWait(10).until(ExpectedConditions.visibilityOfElementLocated(email()));
+    openLoginPage();
+    WebElement emailInput = driver.findElement(email());
     WebElement pwInput = driver.findElement(password());
     WebElement btn = driver.findElement(signInBtn());
 
@@ -124,7 +126,7 @@ public void missingCredentials_validationShown() {
   /** 5) Forgot password flow — modal appears and we see feedback after sending */
   @Test(priority = 5)
   public void resetPassword_sendsEmail_orShowsFeedback() {
-    driver.get(loginUrl());
+    openLoginPage();
     driver.findElement(forgotLink()).click();
 
     // Modal should appear
@@ -145,9 +147,7 @@ public void missingCredentials_validationShown() {
   @Test(priority = 8)
 public void authLinksHiddenAfterLogin_profileShown() {
   // 1) Go to login and sign in
-  driver.get(loginUrl());
-  uiWait(10).until(d -> ((JavascriptExecutor) d)
-      .executeScript("return document.readyState").equals("complete"));
+  openLoginPage();
 
   driver.findElement(email()).clear();
   driver.findElement(email()).sendKeys(VALID_EMAIL);
