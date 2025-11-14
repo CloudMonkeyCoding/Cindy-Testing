@@ -14,6 +14,7 @@ import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -225,47 +226,70 @@ public class MenuUITests extends BaseUi {
         throw new SkipException("Menu grid is empty; nothing to evaluate for ordering.");
       }
 
-      for (WebElement card : cards) {
-        String identifier = cardIdentifier(card);
-        if (!evaluatedProducts.add(identifier)) {
+      List<CardLocator> locators = captureCardLocators(cards);
+
+      for (CardLocator locator : locators) {
+        String identifier = locator.identifier();
+        if (evaluatedProducts.contains(identifier)) {
           continue;
         }
 
-        WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
-        String addLabel = addBtn.getText() == null ? "" : addBtn.getText().trim().toLowerCase();
-        boolean addEnabled = addBtn.isEnabled() && !hasClass(card, "out-of-stock") && !addLabel.contains("unavailable");
+        WebElement card = locateCard(locator);
+        if (card == null) {
+          continue;
+        }
 
-        if (addEnabled) {
-          waitForToastToHide();
-          addBtn.click();
+        evaluatedProducts.add(identifier);
 
-          String message = waitForToastMessage();
-          Assert.assertTrue(message.toLowerCase().contains("sign in"),
-              "Clicking Add to Cart should prompt sign-in when unauthenticated for product " + identifier + ".");
-          Assert.assertEquals(currentToastTone(), "warn",
-              "Add-to-cart toast should warn about authentication for product " + identifier + ".");
-
-          waitForToastToHide();
-
-          WebElement modal = driver.findElement(quantityModal());
-          Assert.assertFalse(hasClass(modal, "show"),
-              "Quantity modal should stay hidden without auth for product " + identifier + ".");
-        } else {
-          String stockText = "";
+        int retries = 0;
+        while (true) {
           try {
-            WebElement stockLabel = card.findElement(By.cssSelector(".price-section .stock"));
-            stockText = stockLabel.getText().trim().toLowerCase();
-          } catch (NoSuchElementException ignored) {
-            // rely on button state when stock label is missing
+            WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
+            String addLabel = addBtn.getText() == null ? "" : addBtn.getText().trim().toLowerCase();
+            boolean addEnabled = addBtn.isEnabled() && !hasClass(card, "out-of-stock") && !addLabel.contains("unavailable");
+
+            if (addEnabled) {
+              waitForToastToHide();
+              addBtn.click();
+
+              String message = waitForToastMessage();
+              Assert.assertTrue(message.toLowerCase().contains("sign in"),
+                  "Clicking Add to Cart should prompt sign-in when unauthenticated for product " + identifier + ".");
+              Assert.assertEquals(currentToastTone(), "warn",
+                  "Add-to-cart toast should warn about authentication for product " + identifier + ".");
+
+              waitForToastToHide();
+
+              WebElement modal = driver.findElement(quantityModal());
+              Assert.assertFalse(hasClass(modal, "show"),
+                  "Quantity modal should stay hidden without auth for product " + identifier + ".");
+            } else {
+              String stockText = "";
+              try {
+                WebElement stockLabel = card.findElement(By.cssSelector(".price-section .stock"));
+                stockText = stockLabel.getText().trim().toLowerCase();
+              } catch (NoSuchElementException ignored) {
+                // rely on button state when stock label is missing
+              }
+
+              boolean unavailableIndicated = addLabel.contains("unavailable")
+                  || stockText.contains("out of stock")
+                  || stockText.contains("stock: 0")
+                  || !addBtn.isEnabled();
+
+              Assert.assertTrue(unavailableIndicated,
+                  "Disabled ordering state should be reflected for product " + identifier + ".");
+            }
+            break;
+          } catch (StaleElementReferenceException ex) {
+            if (retries++ >= 1) {
+              throw ex;
+            }
+            card = locateCard(locator);
+            if (card == null) {
+              break;
+            }
           }
-
-          boolean unavailableIndicated = addLabel.contains("unavailable")
-              || stockText.contains("out of stock")
-              || stockText.contains("stock: 0")
-              || !addBtn.isEnabled();
-
-          Assert.assertTrue(unavailableIndicated,
-              "Disabled ordering state should be reflected for product " + identifier + ".");
         }
       }
 
@@ -282,7 +306,7 @@ public class MenuUITests extends BaseUi {
         break;
       }
 
-      String previousSignature = pageSignature(cards);
+      String previousSignature = pageSignature(locators);
       nextPage.click();
 
       uiWait(8).until(d -> {
@@ -290,7 +314,7 @@ public class MenuUITests extends BaseUi {
         if (newCards.isEmpty()) {
           return false;
         }
-        return !pageSignature(newCards).equals(previousSignature);
+        return !pageSignature(captureCardLocators(newCards)).equals(previousSignature);
       });
 
       pageSafety++;
@@ -404,39 +428,128 @@ public class MenuUITests extends BaseUi {
     }
   }
 
-  private String cardIdentifier(WebElement card) {
-    String id = card.getAttribute("data-product-id");
-    if (id != null) {
-      id = id.trim();
-      if (!id.isEmpty()) {
-        return "id:" + id;
-      }
+  private List<CardLocator> captureCardLocators(List<WebElement> cards) {
+    List<CardLocator> locators = new ArrayList<>();
+    if (cards == null) {
+      return locators;
     }
 
-    try {
-      WebElement title = card.findElement(By.cssSelector(".menu-content h3"));
-      String name = title.getText().trim();
-      if (!name.isEmpty()) {
-        return "name:" + name;
+    for (int i = 0; i < cards.size(); i++) {
+      WebElement card = cards.get(i);
+      String productId = null;
+      String titleText = null;
+
+      try {
+        productId = trimToNull(card.getAttribute("data-product-id"));
+      } catch (StaleElementReferenceException ignored) {
+        // fall back to other strategies
       }
-    } catch (NoSuchElementException ignored) {
-      // fall through to generated identifier
+
+      if (titleText == null) {
+        try {
+          WebElement title = card.findElement(By.cssSelector(".menu-content h3"));
+          titleText = trimToNull(title.getText());
+        } catch (NoSuchElementException | StaleElementReferenceException ignored) {
+          // rely on position
+        }
+      }
+
+      locators.add(new CardLocator(productId, titleText, i));
     }
 
-    return "card:" + Integer.toHexString(System.identityHashCode(card));
+    return locators;
   }
 
-  private String pageSignature(List<WebElement> cards) {
-    if (cards == null || cards.isEmpty()) {
+  private String pageSignature(List<CardLocator> locators) {
+    if (locators == null || locators.isEmpty()) {
       return "empty";
     }
 
     StringBuilder builder = new StringBuilder();
-    int sample = Math.min(3, cards.size());
+    int sample = Math.min(3, locators.size());
     for (int i = 0; i < sample; i++) {
-      builder.append(cardIdentifier(cards.get(i))).append('|');
+      builder.append(locators.get(i).identifier()).append('|');
     }
     return builder.toString();
+  }
+
+  private WebElement locateCard(CardLocator locator) {
+    if (locator == null) {
+      return null;
+    }
+
+    WebElement byId = findCardByProductId(locator.productId);
+    if (byId != null) {
+      return byId;
+    }
+
+    WebElement byTitle = findCardByTitle(locator.titleText);
+    if (byTitle != null) {
+      return byTitle;
+    }
+
+    List<WebElement> cards = driver.findElements(menuCards());
+    if (locator.index >= 0 && locator.index < cards.size()) {
+      return cards.get(locator.index);
+    }
+
+    return null;
+  }
+
+  private WebElement findCardByProductId(String productId) {
+    if (productId == null || !(driver instanceof JavascriptExecutor executor)) {
+      return null;
+    }
+
+    Object result = executor.executeScript(
+        "return Array.from(document.querySelectorAll('#menuGrid .menu-item'))"
+            + ".find(el => (el.dataset && el.dataset.productId ? el.dataset.productId.trim() : '') === arguments[0]);",
+        productId);
+    return result instanceof WebElement ? (WebElement) result : null;
+  }
+
+  private WebElement findCardByTitle(String title) {
+    if (title == null || !(driver instanceof JavascriptExecutor executor)) {
+      return null;
+    }
+
+    Object result = executor.executeScript(
+        "return Array.from(document.querySelectorAll('#menuGrid .menu-item')).find(el => {"
+            + "const heading = el.querySelector('.menu-content h3');"
+            + "return heading && heading.textContent && heading.textContent.trim() === arguments[0];"
+            + "});",
+        title);
+    return result instanceof WebElement ? (WebElement) result : null;
+  }
+
+  private String trimToNull(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private static class CardLocator {
+    private final String productId;
+    private final String titleText;
+    private final int index;
+
+    private CardLocator(String productId, String titleText, int index) {
+      this.productId = productId;
+      this.titleText = titleText;
+      this.index = index;
+    }
+
+    private String identifier() {
+      if (productId != null) {
+        return "id:" + productId;
+      }
+      if (titleText != null) {
+        return "name:" + titleText;
+      }
+      return "index:" + index;
+    }
   }
 
   private boolean isConnectionRefused(Throwable error) {
