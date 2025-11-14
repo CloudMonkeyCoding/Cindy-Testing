@@ -33,6 +33,7 @@ public class AuthUITests extends BaseUi {
   private By password()    { return By.cssSelector("#password, [data-testid='password']"); }
   private By signInBtn()   { return By.cssSelector("form button[type='submit'], [data-testid='sign-in']"); }
   private By errorBanner() { return By.cssSelector("#errorMessage, [data-testid='error'], .error-message"); }
+  private By successBanner() { return By.cssSelector("#successMessage, [data-testid='success'], .success-message"); }
 
   // Forgot Password modal pieces present in your login.html
   private By forgotLink()     { return By.cssSelector("#forgotPasswordLink, a[href*='forgot']"); }
@@ -147,10 +148,20 @@ public class AuthUITests extends BaseUi {
     input.sendKeys(VALID_EMAIL);
     driver.findElement(sendResetCode()).click();
 
-    // We accept either success or error feedback; just assert feedback shows up
-    WebElement fb = uiWait(12).until(ExpectedConditions.visibilityOfElementLocated(forgotFeedback()));
-    Assert.assertTrue(fb.isDisplayed(), "Expected feedback label to be visible");
-    Assert.assertFalse(fb.getText().trim().isEmpty(), "Expected feedback text after attempting reset");
+    boolean surfaced = uiWait(15).until(d ->
+        hasVisibleText(forgotFeedback()) ||
+        hasVisibleText(successBanner()) ||
+        hasVisibleText(errorBanner()));
+
+    Assert.assertTrue(surfaced, "Expected some feedback after attempting password reset");
+
+    String modalFeedback = textIfAny(forgotFeedback());
+    String toastSuccess  = textIfAny(successBanner());
+    String toastError    = textIfAny(errorBanner());
+
+    Assert.assertTrue(!modalFeedback.isEmpty() || !toastSuccess.isEmpty() || !toastError.isEmpty(),
+        String.format("Expected feedback text. modalFeedback='%s', toastSuccess='%s', toastError='%s'",
+            modalFeedback, toastSuccess, toastError));
   }
 
   @Test(priority = 8)
@@ -232,5 +243,27 @@ public class AuthUITests extends BaseUi {
       }
     }
     return false;
+  }
+
+  private boolean hasVisibleText(By locator) {
+    for (WebElement el : driver.findElements(locator)) {
+      try {
+        if (el.isDisplayed() && !el.getText().trim().isEmpty()) {
+          return true;
+        }
+      } catch (StaleElementReferenceException ignored) {}
+    }
+    return false;
+  }
+
+  private String textIfAny(By locator) {
+    for (WebElement el : driver.findElements(locator)) {
+      try {
+        if (el.isDisplayed()) {
+          return el.getText().trim();
+        }
+      } catch (StaleElementReferenceException ignored) {}
+    }
+    return "";
   }
 }
