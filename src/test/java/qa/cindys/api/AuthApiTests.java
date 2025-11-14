@@ -36,25 +36,6 @@ public class AuthApiTests {
     return trimmed.isEmpty() ? fallback : trimmed;
   }
 
-  private void ensureEndpointReachable(String path) {
-    String target = url(path);
-    try {
-      java.net.URL url = new java.net.URL(target);
-      java.net.URLConnection raw = url.openConnection();
-      raw.setConnectTimeout(3000);
-      raw.setReadTimeout(3000);
-      if (raw instanceof java.net.HttpURLConnection http) {
-        http.setRequestMethod("GET");
-        int status = http.getResponseCode();
-        if (status >= 400) {
-          Assert.fail("Endpoint " + target + " responded with status " + status);
-        }
-      }
-    } catch (java.io.IOException ex) {
-      throw new SkipException("Skipping API test because endpoint is unreachable: " + target, ex);
-    }
-  }
-
   private String url(String path) {
     // Ensure exactly one slash between base and path
     String b = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length()-1) : baseUrl;
@@ -62,19 +43,46 @@ public class AuthApiTests {
     return b + p;
   }
 
+  private boolean isConnectionIssue(Throwable error) {
+    for (Throwable cur = error; cur != null; cur = cur.getCause()) {
+      if (cur instanceof java.net.ConnectException ||
+          cur instanceof java.net.UnknownHostException ||
+          cur instanceof java.net.NoRouteToHostException ||
+          cur instanceof java.net.SocketTimeoutException) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private Response postJsonOrSkip(String endpoint, String payload, String scenario) {
+    try {
+      return
+        given()
+          .contentType("application/json")
+          .body(payload)
+        .when()
+          .post(url(endpoint));
+    } catch (RuntimeException ex) {
+      if (isConnectionIssue(ex)) {
+        throw new SkipException(
+            "Skipping API test (" + scenario + ") because " + url(endpoint) + " is unreachable. " +
+            "Start the site locally or override -DbaseUrl/loginEndpoint/registerEndpoint to point at the running backend.",
+            ex);
+      }
+      throw ex;
+    }
+  }
+
   @Test
   public void wrongPassword_returnsFriendlyError() {
-    ensureEndpointReachable(loginEndpoint);
     String email = System.getProperty("validEmail", "test@example.com");
 
     // Send JSON; many PHP stacks also accept x-www-form-urlencoded—switch if needed.
-    Response res;
-    res =
-      given()
-        .contentType("application/json")
-        .body("{\"email\":\"" + email + "\",\"password\":\"wrong\"}")
-      .when()
-        .post(url(loginEndpoint));
+    Response res = postJsonOrSkip(
+        loginEndpoint,
+        "{\"email\":\"" + email + "\",\"password\":\"wrong\"}",
+        "wrong password");
 
     // First assert we actually hit something (not null host / wrong route)
     Assert.assertTrue(res.getStatusCode() > 0, "No HTTP response received.");
@@ -91,16 +99,12 @@ public class AuthApiTests {
 
   @Test
   public void duplicateEmail_signupBlocked409() {
-    ensureEndpointReachable(registerEndpoint);
     String email = System.getProperty("validEmail","test@example.com");
 
-    io.restassured.response.Response resp;
-    resp =
-        given()
-          .contentType("application/json")
-          .body("{\"email\":\""+email+"\",\"password\":\"XyZ!2345\",\"name\":\"Dup\"}")
-        .when()
-          .post(url(registerEndpoint));
+    Response resp = postJsonOrSkip(
+        registerEndpoint,
+        "{\"email\":\""+email+"\",\"password\":\"XyZ!2345\",\"name\":\"Dup\"}",
+        "duplicate signup");
 
     int status = resp.statusCode();
     String body  = resp.asString().trim().toLowerCase();
