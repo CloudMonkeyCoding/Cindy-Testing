@@ -114,10 +114,18 @@ public class MenuUITests extends BaseUi {
       return null;
     }
 
-    for (WebElement btn : webDriver.findElements(addButtons())) {
-      if (btn.isDisplayed() && btn.isEnabled()) {
-        return btn;
+    try {
+      for (WebElement btn : webDriver.findElements(addButtons())) {
+        try {
+          if (btn.isDisplayed() && btn.isEnabled()) {
+            return btn;
+          }
+        } catch (StaleElementReferenceException ignored) {
+          return null;
+        }
       }
+    } catch (StaleElementReferenceException ignored) {
+      return null;
     }
 
     return null;
@@ -994,6 +1002,28 @@ public class MenuUITests extends BaseUi {
           String text = confirmation.getText();
           if (text != null && !text.trim().isEmpty()) {
             boolean error = hasClass(confirmation, "error");
+            return OrderAttemptResult.message(text.trim(), error);
+          }
+        }
+
+        WebElement toastElement = textElementIfPresent(toast());
+        if (toastElement != null) {
+          String classes = toastElement.getAttribute("class");
+          String text = toastElement.getText();
+          if (classes != null && classes.contains("show") && text != null && !text.trim().isEmpty()) {
+            String tone = toastElement.getAttribute("data-tone");
+            boolean error = tone != null && tone.toLowerCase(Locale.ROOT).contains("error");
+            if (!error && tone != null) {
+              error = tone.toLowerCase(Locale.ROOT).contains("danger");
+            }
+            if (!error) {
+              String lowered = text.trim().toLowerCase(Locale.ROOT);
+              error = lowered.contains("fail")
+                  || lowered.contains("error")
+                  || lowered.contains("unable")
+                  || lowered.contains("cannot")
+                  || lowered.contains("can't");
+            }
             return OrderAttemptResult.message(text.trim(), error);
           }
         }
