@@ -416,9 +416,25 @@ public class MenuUITests extends BaseUi {
 
   @Test(priority = 7, dependsOnMethods = "menuPage_coreComponentsVisible")
   public void orderingEachMenuItem_loggedInAddsToCart() {
-    loginAndOpenMenu();
-    waitForToastToHide();
+    SessionRefreshRequested lastFailure = null;
+    for (int attempt = 0; attempt < 2; attempt++) {
+      loginAndOpenMenu();
+      waitForToastToHide();
 
+      try {
+        performLoggedInOrderingSweep();
+        return;
+      } catch (SessionRefreshRequested refresh) {
+        lastFailure = refresh;
+        waitForToastToHide();
+      }
+    }
+
+    String message = lastFailure == null ? "Authenticated session remained invalid." : lastFailure.getMessage();
+    Assert.fail("Unable to keep authenticated session active while adding all menu items: " + message);
+  }
+
+  private void performLoggedInOrderingSweep() {
     Set<String> processedProducts = new LinkedHashSet<>();
     int pageSafety = 0;
     int inStockAttempted = 0;
@@ -499,7 +515,6 @@ public class MenuUITests extends BaseUi {
 
               String message = waitForToastMessage();
               ensureAuthenticatedSession("adding product " + identifier, message);
-              String lowered = message.toLowerCase(Locale.ROOT);
               String tone = currentToastTone();
               if ("error".equalsIgnoreCase(tone)) {
                 boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
@@ -517,7 +532,6 @@ public class MenuUITests extends BaseUi {
             } else {
               String message = waitForToastMessage();
               ensureAuthenticatedSession("adding product " + identifier, message);
-              String lowered = message.toLowerCase(Locale.ROOT);
               String tone = currentToastTone();
               if ("error".equalsIgnoreCase(tone)) {
                 boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
@@ -533,6 +547,8 @@ public class MenuUITests extends BaseUi {
               waitForToastToHide();
             }
             break;
+          } catch (SessionRefreshRequested refresh) {
+            throw refresh;
           } catch (StaleElementReferenceException ex) {
             if (retries++ >= 2) {
               throw ex;
@@ -712,9 +728,25 @@ public class MenuUITests extends BaseUi {
 
   @Test(priority = 9, dependsOnMethods = "menuPage_coreComponentsVisible")
   public void cartCheckout_orderAttemptProvidesFeedback() {
-    loginAndOpenMenu();
-    waitForToastToHide();
+    SessionRefreshRequested lastFailure = null;
+    for (int attempt = 0; attempt < 2; attempt++) {
+      loginAndOpenMenu();
+      waitForToastToHide();
 
+      try {
+        performCartCheckoutOrderAttemptProvidesFeedback();
+        return;
+      } catch (SessionRefreshRequested refresh) {
+        lastFailure = refresh;
+        waitForToastToHide();
+      }
+    }
+
+    String message = lastFailure == null ? "Authenticated session remained invalid." : lastFailure.getMessage();
+    Assert.fail("Unable to keep authenticated session active during cart checkout: " + message);
+  }
+
+  private void performCartCheckoutOrderAttemptProvidesFeedback() {
     CartAddResult seeded = seedCartWithInStockItem();
 
     waitForToastToHide();
@@ -1443,7 +1475,7 @@ public class MenuUITests extends BaseUi {
   private void ensureAuthenticatedSession(String context, String toastMessage) {
     if (indicatesAuthenticationRequired(toastMessage)) {
       String location = context == null ? "authenticated flow" : context;
-      throw new SkipException("Authenticated session appears invalid while " + location + ": " + toastMessage);
+      throw new SessionRefreshRequested("Authenticated session appears invalid while " + location + ": " + toastMessage);
     }
   }
 
@@ -1531,5 +1563,11 @@ public class MenuUITests extends BaseUi {
       }
     }
     return -1;
+  }
+
+  private static class SessionRefreshRequested extends RuntimeException {
+    SessionRefreshRequested(String message) {
+      super(message);
+    }
   }
 }
