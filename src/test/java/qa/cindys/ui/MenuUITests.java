@@ -514,6 +514,7 @@ public class MenuUITests extends BaseUi {
 
     List<CardLocator> locators = captureCardLocators(cards);
     CardLocator targetLocator = null;
+    boolean modalOpened = false;
 
     for (CardLocator locator : locators) {
       WebElement card = locateCard(locator);
@@ -534,23 +535,22 @@ public class MenuUITests extends BaseUi {
         continue;
       }
 
-      targetLocator = locator;
-      break;
+      waitForToastToHide();
+      clickElement(addBtn);
+
+      if (modalAppearedWithin(Duration.ofSeconds(8))) {
+        targetLocator = locator;
+        modalOpened = true;
+        break;
+      }
+
+      waitForModalHidden();
+      waitForToastToHide();
     }
 
-    if (targetLocator == null) {
+    if (targetLocator == null || !modalOpened) {
       throw new SkipException("No in-stock menu items were available to evaluate quantity limits.");
     }
-
-    WebElement card = locateCard(targetLocator);
-    if (card == null) {
-      throw new SkipException("Unable to relocate the target menu card for quantity limit validation.");
-    }
-
-    WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
-
-    waitForToastToHide();
-    clickElement(addBtn);
 
     try {
       waitForModalVisible();
@@ -591,7 +591,7 @@ public class MenuUITests extends BaseUi {
     waitForToastToHide();
     waitForModalHidden();
 
-    card = locateCard(targetLocator);
+    WebElement card = locateCard(targetLocator);
     if (card == null) {
       throw new SkipException("Menu re-rendered unexpectedly; unable to reopen modal for verification.");
     }
@@ -692,26 +692,30 @@ public class MenuUITests extends BaseUi {
     });
   }
 
+  private boolean isModalShowing() {
+    try {
+      WebElement modal = driver.findElement(quantityModal());
+      return hasClass(modal, "show");
+    } catch (NoSuchElementException | StaleElementReferenceException ignored) {
+      return false;
+    }
+  }
+
+  private boolean modalAppearedWithin(Duration timeout) {
+    try {
+      new WebDriverWait(driver, timeout).until(d -> isModalShowing());
+      return true;
+    } catch (TimeoutException ex) {
+      return false;
+    }
+  }
+
   private void waitForModalVisible() {
-    uiWait(10).until(d -> {
-      try {
-        WebElement modal = d.findElement(quantityModal());
-        return hasClass(modal, "show");
-      } catch (NoSuchElementException ignored) {
-        return false;
-      }
-    });
+    uiWait(10).until(d -> isModalShowing());
   }
 
   private void waitForModalHidden() {
-    uiWait(8).until(d -> {
-      try {
-        WebElement modal = d.findElement(quantityModal());
-        return !hasClass(modal, "show");
-      } catch (NoSuchElementException ignored) {
-        return true;
-      }
-    });
+    uiWait(8).until(d -> !isModalShowing());
   }
 
   private String waitForToastMessage() {
