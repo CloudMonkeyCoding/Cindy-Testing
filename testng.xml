@@ -1,0 +1,10 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd" >
+<suite name="Auth Suite" parallel="false">
+  <test name="UI and API">
+    <classes>
+      <class name="qa.cindys.ui.AuthUITests"/>
+      <class name="qa.cindys.api.AuthApiTests"/>
+      <class name="qa.cindys.unit.PasswordPolicyTests"/>
+    </classes>
+  </test>
+</suite>

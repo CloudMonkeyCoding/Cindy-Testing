@@ -1,0 +1,93 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>qa.cindys</groupId>
+  <artifactId>auth-selenium</artifactId>
+  <version>1.0.0</version>
+
+  <properties>
+    <!-- You’re on JDK 23; compiling with release 17 keeps compatibility -->
+    <maven.compiler.release>17</maven.compiler.release>
+    <selenium.version>4.24.0</selenium.version>
+    <testng.version>7.10.2</testng.version>
+    <restassured.version>5.4.0</restassured.version>
+  </properties>
+
+  <dependencies>
+    <!-- Selenium -->
+    <dependency>
+      <groupId>org.seleniumhq.selenium</groupId>
+      <artifactId>selenium-java</artifactId>
+      <version>${selenium.version}</version>
+    </dependency>
+
+    <!-- Auto-download drivers -->
+    <dependency>
+      <groupId>io.github.bonigarcia</groupId>
+      <artifactId>webdrivermanager</artifactId>
+      <version>5.9.2</version>
+    </dependency>
+
+    <!-- TestNG -->
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <version>${testng.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- API checks -->
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <version>${restassured.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>json-path</artifactId>
+      <version>${restassured.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+  <plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-compiler-plugin</artifactId>
+      <version>3.11.0</version>
+      <configuration>
+        <release>17</release>
+      </configuration>
+    </plugin>
+
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-surefire-plugin</artifactId>
+      <version>3.2.5</version>
+      <configuration>
+        <includes>
+          <include>**/*Tests.java</include>
+        </includes>
+        <systemPropertyVariables>
+          <!-- keep names IN SYNC with what your tests read -->
+          <baseUrl>${baseUrl}</baseUrl>
+          <loginPage>${loginPage}</loginPage>
+          <menuPage>${menuPage}</menuPage>
+
+          <!-- add these if your tests use them -->
+          <loginUrl>${loginUrl}</loginUrl>
+          <menuUrl>${menuUrl}</menuUrl>
+          <validEmail>${validEmail}</validEmail>
+          <validPassword>${validPassword}</validPassword>
+          <unregisteredEmail>${unregisteredEmail}</unregisteredEmail>
+          <hasTestUser>${hasTestUser}</hasTestUser>
+          <headless>${headless}</headless>
+        </systemPropertyVariables>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
+
+</project>
