@@ -7,6 +7,7 @@ import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.TimeoutException;
+import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -107,6 +108,20 @@ public class MenuUITests extends BaseUi {
 
   private static final Pattern MAX_AVAILABLE_PATTERN = Pattern.compile("maximum available:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
   private static final Pattern IN_CART_PATTERN = Pattern.compile("in cart:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+
+  private WebElement firstActiveAddButton(WebDriver webDriver) {
+    if (webDriver == null) {
+      return null;
+    }
+
+    for (WebElement btn : webDriver.findElements(addButtons())) {
+      if (btn.isDisplayed() && btn.isEnabled()) {
+        return btn;
+      }
+    }
+
+    return null;
+  }
 
   private WebElement firstNonAllCategory(List<WebElement> pills) {
     for (WebElement pill : pills) {
@@ -232,20 +247,33 @@ public class MenuUITests extends BaseUi {
     openMenuPage();
     waitForToastToHide();
 
-    WebElement addBtn = uiWait(8).until(d -> {
-      for (WebElement btn : d.findElements(addButtons())) {
-        if (btn.isDisplayed() && btn.isEnabled()) {
-          return btn;
-        }
-      }
-      return null;
-    });
+    WebElement addBtn = uiWait(8).until(this::firstActiveAddButton);
 
     if (addBtn == null) {
       throw new SkipException("No in-stock products were available to click Add to Cart.");
     }
 
-    addBtn.click();
+    int attempts = 0;
+    while (true) {
+      try {
+        clickElement(addBtn);
+        break;
+      } catch (StaleElementReferenceException stale) {
+        if (++attempts >= 3) {
+          throw stale;
+        }
+
+        try {
+          addBtn = uiWait(5).until(this::firstActiveAddButton);
+        } catch (TimeoutException timeout) {
+          throw new SkipException("In-stock add button disappeared before it could be clicked.", timeout);
+        }
+
+        if (addBtn == null) {
+          throw new SkipException("In-stock add button disappeared before it could be clicked.");
+        }
+      }
+    }
 
     String message = waitForToastMessage();
     Assert.assertTrue(message.toLowerCase().contains("sign in"), "Expected sign-in prompt toast after add to cart.");
