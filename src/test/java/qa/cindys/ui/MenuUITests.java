@@ -21,6 +21,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MenuUITests extends BaseUi {
 
@@ -65,6 +67,13 @@ public class MenuUITests extends BaseUi {
   private By loginPassword() { return By.cssSelector("#password, [data-testid='password']"); }
   private By loginSubmit() { return By.cssSelector("form button[type='submit'], [data-testid='sign-in']"); }
   private By loginErrorBanner() { return By.cssSelector("#errorMessage, [data-testid='error'], .error-message"); }
+  private By quantityInput() { return By.id("currentQty"); }
+  private By increaseQuantityButton() { return By.id("increaseQty"); }
+  private By cancelAddButton() { return By.id("cancelAdd"); }
+  private By modalSubtitle() { return By.id("modalSubtitle"); }
+
+  private static final Pattern MAX_AVAILABLE_PATTERN = Pattern.compile("maximum available:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+  private static final Pattern IN_CART_PATTERN = Pattern.compile("in cart:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
 
   private WebElement firstNonAllCategory(List<WebElement> pills) {
     for (WebElement pill : pills) {
@@ -486,6 +495,133 @@ public class MenuUITests extends BaseUi {
         "Expected to add at least one product to the cart while authenticated. Attempts: " + inStockAttempted);
   }
 
+  @Test(priority = 8, dependsOnMethods = "menuPage_coreComponentsVisible")
+  public void addingMoreThanMaximumQuantity_isPrevented() {
+    loginAndOpenMenu();
+    waitForToastToHide();
+
+    List<WebElement> cards = uiWait(10).until(d -> {
+      List<WebElement> items = d.findElements(menuCards());
+      if (!items.isEmpty()) {
+        return items;
+      }
+      return isVisible(menuEmpty()) ? items : null;
+    });
+
+    if (cards == null || cards.isEmpty()) {
+      throw new SkipException("Menu grid is empty; no products available to verify quantity limits.");
+    }
+
+    List<CardLocator> locators = captureCardLocators(cards);
+    CardLocator targetLocator = null;
+
+    for (CardLocator locator : locators) {
+      WebElement card = locateCard(locator);
+      if (card == null) {
+        continue;
+      }
+
+      WebElement addBtn;
+      try {
+        addBtn = card.findElement(By.cssSelector(".add-btn"));
+      } catch (NoSuchElementException ex) {
+        continue;
+      }
+
+      String addLabel = addBtn.getText() == null ? "" : addBtn.getText().trim().toLowerCase();
+      boolean available = addBtn.isEnabled() && !hasClass(card, "out-of-stock") && !addLabel.contains("unavailable");
+      if (!available) {
+        continue;
+      }
+
+      targetLocator = locator;
+      break;
+    }
+
+    if (targetLocator == null) {
+      throw new SkipException("No in-stock menu items were available to evaluate quantity limits.");
+    }
+
+    WebElement card = locateCard(targetLocator);
+    if (card == null) {
+      throw new SkipException("Unable to relocate the target menu card for quantity limit validation.");
+    }
+
+    WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
+
+    waitForToastToHide();
+    clickElement(addBtn);
+
+    try {
+      waitForModalVisible();
+    } catch (TimeoutException ex) {
+      throw new AssertionError("Expected quantity modal to appear before attempting capped quantity validation.", ex);
+    }
+
+    int maxSelectable = maxSelectableFromModal();
+    if (maxSelectable <= 0) {
+      throw new SkipException("Quantity modal did not advertise a positive maximum; cannot verify capped behavior.");
+    }
+
+    WebElement quantityField = uiWait(6).until(ExpectedConditions.visibilityOfElementLocated(quantityInput()));
+    setNumericInputValue(quantityField, maxSelectable + 5);
+
+    uiWait(4).until(d -> {
+      WebElement input = d.findElement(quantityInput());
+      String value = input.getAttribute("value");
+      return parsePositiveInt(value) == maxSelectable;
+    });
+
+    int capturedValue = parsePositiveInt(quantityField.getAttribute("value"));
+    Assert.assertEquals(capturedValue, maxSelectable,
+        "Quantity input should clamp to the maximum available when exceeding the limit.");
+
+    WebElement increaseBtn = driver.findElement(increaseQuantityButton());
+    Assert.assertTrue(isButtonDisabled(increaseBtn),
+        "Increase button should be disabled when the quantity is capped at the available maximum.");
+
+    WebElement confirmBtn = uiWait(6).until(ExpectedConditions.elementToBeClickable(confirmAddButton()));
+    clickElement(confirmBtn);
+
+    String toastMessage = waitForToastMessage();
+    String toastTone = currentToastTone();
+    Assert.assertFalse(toastTone.equalsIgnoreCase("error"),
+        "Attempting to add the capped quantity should not yield an error toast. Actual toast: " + toastMessage);
+
+    waitForToastToHide();
+    waitForModalHidden();
+
+    card = locateCard(targetLocator);
+    if (card == null) {
+      throw new SkipException("Menu re-rendered unexpectedly; unable to reopen modal for verification.");
+    }
+
+    waitForToastToHide();
+    WebElement reopenBtn = card.findElement(By.cssSelector(".add-btn"));
+    clickElement(reopenBtn);
+    waitForModalVisible();
+
+    WebElement reopenedField = uiWait(6).until(ExpectedConditions.visibilityOfElementLocated(quantityInput()));
+    int reopenedQuantity = parsePositiveInt(reopenedField.getAttribute("value"));
+    Assert.assertEquals(reopenedQuantity, maxSelectable,
+        "Cart quantity should persist at the capped maximum after reopening the modal.");
+
+    WebElement subtitle = textElementIfPresent(modalSubtitle());
+    if (subtitle != null) {
+      int inCart = extractInt(IN_CART_PATTERN, subtitle.getText());
+      if (inCart > 0) {
+        Assert.assertEquals(inCart, maxSelectable,
+            "Modal subtitle should report the capped quantity in the cart.");
+      }
+    }
+
+    WebElement cancelBtn = textElementIfPresent(cancelAddButton());
+    if (cancelBtn != null) {
+      clickElement(cancelBtn);
+      waitForModalHidden();
+    }
+  }
+
   private void clearSearch(WebElement input) {
     input.sendKeys(Keys.chord(Keys.CONTROL, "a"));
     input.sendKeys(Keys.chord(Keys.COMMAND, "a"));
@@ -858,5 +994,91 @@ public class MenuUITests extends BaseUi {
     } catch (NoSuchElementException ignored) {
       return "";
     }
+  }
+
+  private int maxSelectableFromModal() {
+    WebElement subtitle = textElementIfPresent(modalSubtitle());
+    if (subtitle != null) {
+      int parsed = extractInt(MAX_AVAILABLE_PATTERN, subtitle.getText());
+      if (parsed > 0) {
+        return parsed;
+      }
+    }
+
+    try {
+      WebElement quantityField = driver.findElement(quantityInput());
+      String maxAttr = quantityField.getAttribute("max");
+      int parsed = parsePositiveInt(maxAttr);
+      if (parsed > 0) {
+        return parsed;
+      }
+    } catch (NoSuchElementException ignored) {
+      // fall through to default
+    }
+
+    return -1;
+  }
+
+  private WebElement textElementIfPresent(By locator) {
+    try {
+      WebElement element = driver.findElement(locator);
+      return element;
+    } catch (NoSuchElementException ignored) {
+      return null;
+    }
+  }
+
+  private void setNumericInputValue(WebElement input, int value) {
+    if (input == null) {
+      return;
+    }
+
+    String target = String.valueOf(value);
+    input.sendKeys(Keys.chord(Keys.CONTROL, "a"));
+    input.sendKeys(Keys.chord(Keys.COMMAND, "a"));
+    input.sendKeys(Keys.DELETE);
+    input.clear();
+    input.sendKeys(target);
+  }
+
+  private boolean isButtonDisabled(WebElement button) {
+    if (button == null) {
+      return true;
+    }
+    String disabledAttr = button.getAttribute("disabled");
+    if (disabledAttr != null) {
+      return true;
+    }
+    if (!button.isEnabled()) {
+      return true;
+    }
+    return hasClass(button, "is-disabled");
+  }
+
+  private int parsePositiveInt(String value) {
+    if (value == null) {
+      return -1;
+    }
+    try {
+      int parsed = Integer.parseInt(value.trim());
+      return parsed > 0 ? parsed : -1;
+    } catch (NumberFormatException ex) {
+      return -1;
+    }
+  }
+
+  private int extractInt(Pattern pattern, String text) {
+    if (pattern == null || text == null) {
+      return -1;
+    }
+    Matcher matcher = pattern.matcher(text);
+    if (matcher.find()) {
+      try {
+        return Integer.parseInt(matcher.group(1));
+      } catch (NumberFormatException ignored) {
+        return -1;
+      }
+    }
+    return -1;
   }
 }
