@@ -1,6 +1,7 @@
 package qa.cindys.ui;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.ElementClickInterceptedException;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
@@ -250,7 +251,7 @@ public class MenuUITests extends BaseUi {
 
             if (addEnabled) {
               waitForToastToHide();
-              addBtn.click();
+              clickElement(addBtn);
 
               String message = waitForToastMessage();
               Assert.assertTrue(message.toLowerCase().contains("sign in"),
@@ -307,7 +308,7 @@ public class MenuUITests extends BaseUi {
       }
 
       String previousSignature = pageSignature(locators);
-      nextPage.click();
+      clickElement(nextPage);
 
       uiWait(8).until(d -> {
         List<WebElement> newCards = d.findElements(menuCards());
@@ -528,6 +529,51 @@ public class MenuUITests extends BaseUi {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private void clickElement(WebElement element) {
+    if (element == null) {
+      return;
+    }
+
+    scrollIntoView(element);
+
+    try {
+      uiWait(6).until(ExpectedConditions.elementToBeClickable(element));
+    } catch (StaleElementReferenceException ex) {
+      throw ex;
+    } catch (RuntimeException ignored) {
+      // fall through to attempt the click even if the element never satisfied the condition
+    }
+
+    try {
+      element.click();
+    } catch (ElementClickInterceptedException intercept) {
+      if (driver instanceof JavascriptExecutor executor) {
+        executor.executeScript(
+            "arguments[0].scrollIntoView({block: 'center', inline: 'center'});", element);
+        try {
+          element.click();
+          return;
+        } catch (ElementClickInterceptedException ignored) {
+          executor.executeScript("arguments[0].click();", element);
+        }
+      } else {
+        throw intercept;
+      }
+    }
+  }
+
+  private void scrollIntoView(WebElement element) {
+    if (element == null) {
+      return;
+    }
+
+    if (driver instanceof JavascriptExecutor executor) {
+      executor.executeScript(
+          "arguments[0].scrollIntoView({block: 'center', inline: 'center'});",
+          element);
+    }
   }
 
   private static class CardLocator {
