@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign Up - Cindy's Bakeshop Hagonoy</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Poppins', sans-serif; }
+body, html { height:100%; width:100%; }
+body {
+  background: linear-gradient(135deg, #faf8f5 0%, #f5f3f0 100%);
+  display:flex; flex-direction:column; min-height:100vh; position:relative;
+  color: #8b4513;
+}
+
+/* Header */
+header {
+  background: linear-gradient(135deg, #f5f3f0 0%, #faf8f5 100%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid rgba(139, 69, 19, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(139, 69, 19, 0.1);
+}
+
+header.scrolled {
+  background: rgba(245, 243, 240, 0.98);
+  box-shadow: 0 4px 20px rgba(139, 69, 19, 0.1);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo-icon {
+  font-size: 2rem;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.logo:hover .logo-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.logo-text {
+  font-size: 1.8rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-decoration: none;
+  letter-spacing: -0.5px;
+}
+
+nav {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+nav ul {
+  list-style: none;
+  display: flex;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+nav ul li a {
+  color: #8b4513;
+  text-decoration: none;
+  font-weight: 600;
+  position: relative;
+  transition: all 0.3s ease;
+  padding: 0.8rem 1.5rem;
+  border-radius: 25px;
+  font-size: 0.95rem;
+}
+
+nav ul li a:hover {
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(139, 69, 19, 0.3);
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  color: #fff !important;
+  padding: 0.7rem 1.5rem;
+  border-radius: 25px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(139, 69, 19, 0.3);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 69, 19, 0.4);
+}
+
+.hamburger {
+  display: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #8b4513;
+  transition: transform 0.3s ease;
+}
+
+.hamburger:hover {
+  transform: scale(1.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  header {
+    padding: 1rem;
+  }
+
+  nav {
+    position: fixed;
+    top: 70px;
+    left: 0;
+    right: 0;
+    background: rgba(245, 243, 240, 0.98);
+    backdrop-filter: blur(10px);
+    display: none;
+    flex-direction: column;
+    text-align: center;
+    border-bottom: 1px solid rgba(139, 69, 19, 0.1);
+    padding: 2rem 0;
+    box-shadow: 0 4px 20px rgba(139, 69, 19, 0.1);
+  }
+
+  nav.active {
+    display: flex;
+  }
+
+  nav ul {
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .hamburger {
+    display: block;
+  }
+}
+
+
+.main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8rem 2rem 2rem;
+  margin-top: 0;
+}
+
+.signup-box {
+  background: linear-gradient(135deg, #faf8f5 0%, #f5f3f0 100%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 2.5rem;
+  box-shadow: 0 20px 40px rgba(139, 69, 19, 0.1);
+  border: 2px solid rgba(139, 69, 19, 0.1);
+  width: 100%;
+  max-width: 450px;
+  position: relative;
+  overflow: hidden;
+}
+
+.signup-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  border-radius: 20px 20px 0 0;
+}
+
+@keyframes shimmer {
+  0%, 100% { background-position: 200% 0; }
+  50% { background-position: -200% 0; }
+}
+
+.signup-box h2 {
+  text-align: center;
+  color: #8b4513;
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 10px rgba(139, 69, 19, 0.1);
+}
+
+.subtitle {
+  text-align: center;
+  color: #8b4513;
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.form-feedback {
+  margin-bottom: 1.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  font-weight: 600;
+  text-align: center;
+  display: none;
+}
+
+.form-feedback.success {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: #fff;
+  display: block;
+}
+
+.form-feedback.error {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: #fff;
+  display: block;
+}
+
+
+.form-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #8b4513;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid rgba(139, 69, 19, 0.2);
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #faf8f5;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: #8b4513;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #8b4513;
+  box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.1);
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.form-group.error-state label {
+  color: #c82333;
+}
+
+.form-group.error-state input {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.12);
+  background: #fff5f5;
+}
+
+.form-group input::placeholder {
+  color: rgba(139, 69, 19, 0.6);
+  font-style: italic;
+}
+
+.optional {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #a0522d;
+}
+
+.helper-text {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: rgba(139, 69, 19, 0.75);
+}
+
+.password-strength {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.strength-weak { color: #8b4513; }
+.strength-medium { color: #a0522d; }
+.strength-strong { color: #27ae60; }
+
+.checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 0.2rem;
+  accent-color: #8b4513;
+}
+
+.checkbox-group label {
+  font-size: 0.85rem;
+  color: #8b4513;
+  line-height: 1.4;
+  margin-bottom: 0;
+  opacity: 0.8;
+}
+
+.checkbox-group a {
+  color: #8b4513;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.checkbox-group a:hover {
+  text-decoration: underline;
+}
+
+.signup-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(139, 69, 19, 0.3);
+}
+
+.signup-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(139, 69, 19, 0.4);
+  background: linear-gradient(135deg, #a0522d, #8b4513);
+}
+
+.signup-btn:active {
+  transform: translateY(0);
+}
+
+.signup-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: #8b4513;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.login-link a {
+  color: #8b4513;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.login-link a:hover {
+  text-decoration: underline;
+  color: #a0522d;
+}
+
+.error-message {
+  color: #8b4513;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  display: none;
+  font-weight: 500;
+}
+
+.success-message {
+  color: #27ae60;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  display: none;
+}
+
+/* Phone Verification Styles */
+.phone-verification-container {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.phone-verification-container input {
+  flex: 1;
+}
+
+.phone-verification-container input:disabled {
+  background: rgba(39, 174, 96, 0.1);
+  border-color: rgba(39, 174, 96, 0.3);
+  color: #27ae60;
+  cursor: not-allowed;
+}
+
+.verify-btn {
+  background: linear-gradient(135deg, #8b4513, #a0522d);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.verify-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #a0522d, #8b4513);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+}
+
+.verify-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.verify-btn.verified {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  cursor: default;
+}
+
+.verification-code-group {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(139, 69, 19, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(139, 69, 19, 0.1);
+}
+
+.verification-container {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.verification-container input {
+  flex: 1;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.2rem;
+}
+
+.resend-btn {
+  background: transparent;
+  color: #8b4513;
+  border: 1px solid #8b4513;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.resend-btn:hover {
+  background: #8b4513;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.resend-btn:disabled {
+  background: #f5f5f5;
+  color: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Verified State Styles */
+.verified-state {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(39, 174, 96, 0.1), rgba(46, 204, 113, 0.05));
+  border-radius: 8px;
+  border: 1px solid rgba(39, 174, 96, 0.2);
+  animation: slideIn 0.5s ease-out;
+}
+
+.verified-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.verified-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+  animation: checkBounce 0.6s ease-out 0.3s both;
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+}
+
+.verified-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.verified-title {
+  font-weight: 600;
+  color: #27ae60;
+  font-size: 1rem;
+}
+
+.verified-phone {
+  font-size: 0.9rem;
+  color: #8b4513;
+  font-weight: 500;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes checkBounce {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .main {
+    padding: 6rem 1rem 2rem;
+  }
+  
+  .phone-verification-container {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+  
+  .verify-btn {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .verification-container {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+  
+  .resend-btn {
+    width: 100%;
+  }
+  
+  .signup-box {
+    padding: 2rem 1.5rem;
+    border-radius: 15px;
+  }
+  
+  .signup-box h2 {
+    font-size: 1.75rem;
+  }
+  
+  .form-group input {
+    padding: 0.875rem;
+    font-size: 0.95rem;
+  }
+  
+  .signup-btn {
+    padding: 0.875rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .signup-box {
+    padding: 1.5rem 1rem;
+  }
+  
+  .signup-box h2 {
+    font-size: 1.5rem;
+  }
+  
+  .subtitle {
+    font-size: 0.85rem;
+  }
+}
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header id="header">
+    <div class="logo">
+      <div class="logo-icon">🍞</div>
+      <a href="../index.php" class="logo-text">Cindy's Bakeshop</a>
+    </div>
+
+    <div class="hamburger" onclick="toggleMenu()">
+      <i class="fas fa-bars"></i>
+    </div>
+
+    <nav id="navMenu">
+      <ul>
+        <li><a href="../index.php">Home</a></li>
+        <li><a href="#" id="menuLink">Menu</a></li>
+        <li><a href="../index.php#about">About</a></li>
+        <li><a href="../index.php#visit">Contact</a></li>
+        <li><a href="login.html">Login</a></li>
+        <li><a href="signup.html" class="active">Signup</a></li>
+        <li>
+          <a href="download-app.html" class="download-btn">
+            <i class="fas fa-download"></i>
+            Download App
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+<div class="main">
+  <div class="signup-box">
+    <h2>Create Account</h2>
+    <p class="subtitle">Join Cindy's Bakeshop and start your sweet journey!</p>
+
+    <div id="formFeedback" class="form-feedback" role="alert"></div>
+
+    <form id="signupForm" novalidate>
+      <div class="form-group">
+        <label for="fullName">Full Name</label>
+        <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" required>
+        <div class="error-message" id="nameError"></div>
+      </div>
+      
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="Enter your email address" required>
+        <div class="error-message" id="emailError"></div>
+      </div>
+      
+      <div class="form-group">
+        <label for="phone">Phone Number <span class="optional">(optional)</span></label>
+        <input type="tel" id="phone" name="phone" placeholder="Enter your phone number">
+        <div class="helper-text">We use your phone number for delivery coordination when needed.</div>
+        <div class="error-message" id="phoneError"></div>
+      </div>
+      
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Create a strong password" required>
+        <div class="password-strength" id="passwordStrength"></div>
+        <div class="error-message" id="passwordError"></div>
+      </div>
+      
+      <div class="form-group">
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password" required>
+        <div class="error-message" id="confirmPasswordError"></div>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="terms" name="terms" required>
+        <label for="terms">I agree to the <a href="terms-and-conditions.html" target="_blank" rel="noopener">Terms and Conditions</a> and <a href="#" onclick="alert('Privacy Policy would be displayed here')">Privacy Policy</a></label>
+      </div>
+      
+      <button type="submit" class="signup-btn" id="signupBtn">
+        Create Account
+      </button>
+    </form>
+    
+    <div class="login-link">
+      Already have an account? <a href="login.html">Sign in here</a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const navMenu = document.getElementById('navMenu');
+const hamburger = document.querySelector('.hamburger');
+const header = document.getElementById('header');
+const signupForm = document.getElementById('signupForm');
+const signupButton = document.getElementById('signupBtn');
+const formFeedback = document.getElementById('formFeedback');
+const fullNameInput = document.getElementById('fullName');
+const emailInput = document.getElementById('email');
+const phoneInput = document.getElementById('phone');
+const passwordInput = document.getElementById('password');
+const confirmPasswordInput = document.getElementById('confirmPassword');
+const termsCheckbox = document.getElementById('terms');
+const passwordStrength = document.getElementById('passwordStrength');
+const errors = {
+  name: document.getElementById('nameError'),
+  email: document.getElementById('emailError'),
+  phone: document.getElementById('phoneError'),
+  password: document.getElementById('passwordError'),
+  confirmPassword: document.getElementById('confirmPasswordError'),
+};
+function setErrorMessage(element, message) {
+  if (!element) return;
+  const fieldGroup = element.closest('.form-group');
+  if (fieldGroup) {
+    if (message) {
+      fieldGroup.classList.add('error-state');
+    } else {
+      fieldGroup.classList.remove('error-state');
+    }
+  }
+  element.textContent = message;
+  element.style.display = message ? 'block' : 'none';
+}
+
+window.toggleMenu = function toggleMenu() {
+  if (navMenu) {
+    navMenu.classList.toggle('active');
+  }
+};
+
+document.addEventListener('click', (event) => {
+  if (navMenu && hamburger && !navMenu.contains(event.target) && !hamburger.contains(event.target)) {
+    navMenu.classList.remove('active');
+  }
+});
+
+if (navMenu) {
+  navMenu.addEventListener('click', (event) => {
+    if (event.target instanceof HTMLElement && event.target.tagName === 'A') {
+      navMenu.classList.remove('active');
+    }
+  });
+}
+
+window.addEventListener('scroll', () => {
+  if (!header) return;
+  if (window.scrollY > 100) {
+    header.classList.add('scrolled');
+  } else {
+    header.classList.remove('scrolled');
+  }
+});
+
+function updatePasswordStrength(value) {
+  if (!passwordStrength) return;
+  let score = 0;
+  if (value.length >= 8) score++;
+  if (/[A-Z]/.test(value)) score++;
+  if (/[a-z]/.test(value)) score++;
+  if (/\d/.test(value)) score++;
+  if (/[^A-Za-z0-9]/.test(value)) score++;
+
+  if (!value.length) {
+    passwordStrength.textContent = '';
+    passwordStrength.className = 'password-strength';
+    return;
+  }
+
+  if (score >= 4) {
+    passwordStrength.textContent = 'Strong password';
+    passwordStrength.className = 'password-strength strength-strong';
+  } else if (score >= 3) {
+    passwordStrength.textContent = 'Good password';
+    passwordStrength.className = 'password-strength strength-medium';
+  } else {
+    passwordStrength.textContent = 'Weak password';
+    passwordStrength.className = 'password-strength strength-weak';
+  }
+}
+
+if (passwordInput) {
+  passwordInput.addEventListener('input', () => {
+    const value = passwordInput.value;
+    updatePasswordStrength(value);
+
+    if (!value) {
+      setErrorMessage(errors.password, '');
+    } else if (validatePassword(value)) {
+      setErrorMessage(errors.password, '');
+    } else {
+      setErrorMessage(
+        errors.password,
+        'Use at least 8 characters with uppercase, lowercase, number, and symbol.'
+      );
+    }
+
+    if (confirmPasswordInput) {
+      confirmPasswordInput.dispatchEvent(new Event('input'));
+    }
+  });
+  updatePasswordStrength(passwordInput.value);
+}
+
+if (fullNameInput) {
+  fullNameInput.addEventListener('input', () => {
+    if (fullNameInput.value.trim()) {
+      setErrorMessage(errors.name, '');
+    }
+  });
+}
+
+if (emailInput) {
+  emailInput.addEventListener('input', () => {
+    const value = emailInput.value.trim();
+    if (!value) {
+      setErrorMessage(errors.email, '');
+    } else if (validateEmail(value)) {
+      setErrorMessage(errors.email, '');
+    } else {
+      setErrorMessage(errors.email, 'Please provide a valid email address.');
+    }
+  });
+}
+
+if (phoneInput) {
+  phoneInput.addEventListener('input', () => {
+    const value = phoneInput.value.trim();
+    if (!value) {
+      setErrorMessage(errors.phone, '');
+    } else if (validatePhone(value)) {
+      setErrorMessage(errors.phone, '');
+    } else {
+      setErrorMessage(errors.phone, 'Please enter a valid phone number.');
+    }
+  });
+}
+
+if (confirmPasswordInput) {
+  confirmPasswordInput.addEventListener('input', () => {
+    const confirmValue = confirmPasswordInput.value;
+    const passwordValue = passwordInput ? passwordInput.value : '';
+
+    if (!confirmValue) {
+      setErrorMessage(errors.confirmPassword, '');
+      return;
+    }
+
+    if (confirmValue && confirmValue === passwordValue) {
+      setErrorMessage(errors.confirmPassword, '');
+    } else {
+      setErrorMessage(errors.confirmPassword, 'Passwords do not match.');
+    }
+  });
+}
+
+function setFormFeedback(message, type) {
+  if (!formFeedback) return;
+  if (!message) {
+    formFeedback.textContent = '';
+    formFeedback.className = 'form-feedback';
+    formFeedback.style.display = 'none';
+    return;
+  }
+  formFeedback.textContent = message;
+  formFeedback.className = `form-feedback ${type}`;
+  formFeedback.style.display = 'block';
+}
+
+function clearErrors() {
+  Object.values(errors).forEach((el) => setErrorMessage(el, ''));
+  setFormFeedback('', '');
+}
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validatePhone(phone) {
+  return /^$|^[0-9+\-\s()]{7,}$/.test(phone);
+}
+
+function validatePassword(password) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password);
+}
+
+function setButtonLoading(button, isLoading, loadingText) {
+  if (!button) return;
+  if (isLoading) {
+    button.dataset.originalText = button.textContent;
+    if (loadingText) {
+      button.textContent = loadingText;
+    }
+    button.disabled = true;
+  } else {
+    button.textContent = button.dataset.originalText || button.textContent;
+    button.disabled = false;
+  }
+}
+
+async function getAuthInstance() {
+  if (!getApps().length) {
+    const configUrl = new URL('../../PHP/firebase_config.php', import.meta.url);
+    const response = await fetch(configUrl, { credentials: 'same-origin' });
+    if (!response.ok) {
+      throw new Error(`Unable to load Firebase configuration: ${response.status}`);
+    }
+    initializeApp(await response.json());
+  }
+  return getAuth();
+}
+
+if (signupForm) {
+  signupForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    clearErrors();
+
+    const fullName = fullNameInput ? fullNameInput.value.trim() : '';
+    const email = emailInput ? emailInput.value.trim() : '';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
+    const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
+
+    let valid = true;
+
+    if (!fullName) {
+      valid = false;
+      setErrorMessage(errors.name, 'Please enter your full name.');
+    }
+
+    if (!email || !validateEmail(email)) {
+      valid = false;
+      setErrorMessage(errors.email, 'Please provide a valid email address.');
+    }
+
+    if (phone && !validatePhone(phone)) {
+      valid = false;
+      setErrorMessage(errors.phone, 'Please enter a valid phone number.');
+    }
+
+    if (!password) {
+      valid = false;
+      setErrorMessage(errors.password, 'Please create a password.');
+    } else if (!validatePassword(password)) {
+      valid = false;
+      setErrorMessage(errors.password, 'Use at least 8 characters with uppercase, lowercase, number, and symbol.');
+    }
+
+    if (!confirmPassword || confirmPassword !== password) {
+      valid = false;
+      setErrorMessage(errors.confirmPassword, 'Passwords do not match.');
+    }
+
+    if (!termsCheckbox || !termsCheckbox.checked) {
+      valid = false;
+      setFormFeedback('Please agree to the terms and privacy policy to continue.', 'error');
+    }
+
+    if (!valid) {
+      setFormFeedback('Please fix the highlighted fields before continuing.', 'error');
+      return;
+    }
+
+    setButtonLoading(signupButton, true, 'Creating account...');
+
+    try {
+      const auth = await getAuthInstance();
+      await createUserWithEmailAndPassword(auth, email, password);
+
+      const response = await fetch('../../PHP/register_user.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName, email, password })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Unable to complete registration.');
+      }
+
+      const firstName = fullName.split(' ')[0] || fullName;
+      localStorage.setItem('userData', JSON.stringify({ firstName, email }));
+      setFormFeedback('Account created successfully! Redirecting you to login...', 'success');
+      setTimeout(() => {
+        window.location.href = 'login.html?signup=success';
+      }, 1800);
+    } catch (error) {
+      console.error('Signup failed:', error);
+
+      let message = 'Unable to create account. Please try again.';
+      const errorCode = error && typeof error === 'object' ? error.code : undefined;
+
+      if (errorCode === 'auth/email-already-in-use') {
+        message = 'This email is already registered. Try logging in instead.';
+        setErrorMessage(errors.email, message);
+        if (emailInput) {
+          emailInput.focus();
+        }
+      } else if (errorCode === 'auth/weak-password') {
+        message = 'Password is too weak. Please use a stronger password.';
+        setErrorMessage(errors.password, message);
+        if (passwordInput) {
+          passwordInput.focus();
+        }
+      } else if (error instanceof Error && error.message) {
+        message = error.message;
+      }
+
+      setFormFeedback(message, 'error');
+    } finally {
+      setButtonLoading(signupButton, false);
+    }
+  });
+}
+</script>
+
+</body>
+</html>

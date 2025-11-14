@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Logout</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="logout">
+  <p>Signing you out...</p>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+      async function loadFirebase() {
+        const configUrl = new URL('../../PHP/firebase_config.php', import.meta.url);
+        const response = await fetch(configUrl, { credentials: 'same-origin' });
+        if (!response.ok) {
+          throw new Error(`Unable to load Firebase configuration: ${response.status}`);
+        }
+        const app = initializeApp(await response.json());
+        const auth = getAuth(app);
+
+        window.auth = auth;
+        window.getAuth = getAuth;
+        onAuthStateChanged(auth, user => {
+          if (user) {
+            console.log('Logged in as:', user.email);
+          } else {
+            console.log('Not logged in');
+          }
+        });
+
+        signOut(auth).finally(() => {
+          window.location.href = './login.html';
+        });
+      }
+
+      loadFirebase().catch(err => console.error('Firebase init failed:', err));
+    </script>
+</body>
+</html>
