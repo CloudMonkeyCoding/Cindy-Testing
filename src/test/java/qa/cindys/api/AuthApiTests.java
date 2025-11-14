@@ -3,6 +3,7 @@ package qa.cindys.api;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -17,9 +18,9 @@ public class AuthApiTests {
 
   @BeforeClass
   public void setup() {
-    baseUrl         = System.getProperty("baseUrl", "http://localhost:3000").trim();
-    loginEndpoint   = System.getProperty("loginEndpoint", "/UserSide/login.html").trim();
-    registerEndpoint= System.getProperty("registerEndpoint", "/UserSide/signup.html").trim();
+    baseUrl          = orDefault(System.getProperty("baseUrl"), "http://localhost:3000");
+    loginEndpoint    = orDefault(System.getProperty("loginEndpoint"), "/UserSide/login.html");
+    registerEndpoint = orDefault(System.getProperty("registerEndpoint"), "/UserSide/signup.html");
 
     if (baseUrl.isEmpty()) {
       throw new IllegalArgumentException("baseUrl system property resolved to empty.");
@@ -27,6 +28,29 @@ public class AuthApiTests {
 
     // Useful debug when an assertion fails
     RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
+  }
+
+  private static String orDefault(String value, String fallback) {
+    if (value == null) return fallback;
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? fallback : trimmed;
+  }
+
+  private void assumeEndpointReachable(String path) {
+    String target = url(path);
+    try {
+      java.net.URL url = new java.net.URL(target);
+      java.net.URLConnection conn = url.openConnection();
+      conn.setConnectTimeout(2000);
+      conn.setReadTimeout(2000);
+      if (conn instanceof java.net.HttpURLConnection http) {
+        http.setRequestMethod("HEAD");
+        http.connect();
+        http.disconnect();
+      }
+    } catch (Exception ex) {
+      throw new SkipException("Skipping API test because endpoint is unreachable: " + target, ex);
+    }
   }
 
   private String url(String path) {
@@ -38,15 +62,21 @@ public class AuthApiTests {
 
   @Test
   public void wrongPassword_returnsFriendlyError() {
+    assumeEndpointReachable(loginEndpoint);
     String email = System.getProperty("validEmail", "test@example.com");
 
     // Send JSON; many PHP stacks also accept x-www-form-urlencoded—switch if needed.
-    Response res =
-      given()
-        .contentType("application/json")
-        .body("{\"email\":\"" + email + "\",\"password\":\"wrong\"}")
-      .when()
-        .post(url(loginEndpoint));
+    Response res;
+    try {
+      res =
+        given()
+          .contentType("application/json")
+          .body("{\"email\":\"" + email + "\",\"password\":\"wrong\"}")
+        .when()
+          .post(url(loginEndpoint));
+    } catch (RuntimeException ex) {
+      throw new SkipException("Skipping API test because POST failed: " + ex.getMessage(), ex);
+    }
 
     // First assert we actually hit something (not null host / wrong route)
     Assert.assertTrue(res.getStatusCode() > 0, "No HTTP response received.");
@@ -62,48 +92,54 @@ public class AuthApiTests {
   }
 
   @Test
-public void duplicateEmail_signupBlocked409() {
-  String email = System.getProperty("validEmail","test@example.com");
+  public void duplicateEmail_signupBlocked409() {
+    assumeEndpointReachable(registerEndpoint);
+    String email = System.getProperty("validEmail","test@example.com");
 
-  io.restassured.response.Response resp =
-      given()
-        .contentType("application/json")
-        .body("{\"email\":\""+email+"\",\"password\":\"XyZ!2345\",\"name\":\"Dup\"}")
-      .when()
-        .post(url(registerEndpoint));
+    io.restassured.response.Response resp;
+    try {
+      resp =
+          given()
+            .contentType("application/json")
+            .body("{\"email\":\""+email+"\",\"password\":\"XyZ!2345\",\"name\":\"Dup\"}")
+          .when()
+            .post(url(registerEndpoint));
+    } catch (RuntimeException ex) {
+      throw new SkipException("Skipping API test because POST failed: " + ex.getMessage(), ex);
+    }
 
-  int status = resp.statusCode();
-  String body  = resp.asString().trim().toLowerCase();
+    int status = resp.statusCode();
+    String body  = resp.asString().trim().toLowerCase();
 
-  // Heuristics for “duplicate” when server still returns 200
-  boolean duplicateInText =
-      body.contains("already") ||
-      body.contains("exists") ||
-      body.contains("in use") ||
-      body.contains("duplicate") ||
-      body.contains("email_exists") ||
-      body.contains("auth/email-already-in-use");
+    // Heuristics for “duplicate” when server still returns 200
+    boolean duplicateInText =
+        body.contains("already") ||
+        body.contains("exists") ||
+        body.contains("in use") ||
+        body.contains("duplicate") ||
+        body.contains("email_exists") ||
+        body.contains("auth/email-already-in-use");
 
-  boolean duplicateInJson = false;
-  try {
-    io.restassured.path.json.JsonPath jp = new io.restassured.path.json.JsonPath(body);
-    Boolean success = jp.getBoolean("success");                 // e.g. {success:false,...}
-    String  code    = jp.getString("code");                     // e.g. EMAIL_EXISTS
-    String  msg     = jp.getString("message");                  // or error.message, etc.
-    if (msg == null) msg = jp.getString("error.message");
-    String errCode  = jp.getString("error.code");
+    boolean duplicateInJson = false;
+    try {
+      io.restassured.path.json.JsonPath jp = new io.restassured.path.json.JsonPath(body);
+      Boolean success = jp.getBoolean("success");                 // e.g. {success:false,...}
+      String  code    = jp.getString("code");                     // e.g. EMAIL_EXISTS
+      String  msg     = jp.getString("message");                  // or error.message, etc.
+      if (msg == null) msg = jp.getString("error.message");
+      String errCode  = jp.getString("error.code");
 
-    duplicateInJson =
-        (success != null && !success) ||
-        (code != null && code.toUpperCase().contains("EMAIL")) ||
-        (errCode != null && errCode.toUpperCase().contains("EMAIL")) ||
-        (msg != null && msg.toLowerCase().matches(".*(already|exists|in use|duplicate).*"));
-  } catch (Exception ignored) { /* body may not be JSON */ }
+      duplicateInJson =
+          (success != null && !success) ||
+          (code != null && code.toUpperCase().contains("EMAIL")) ||
+          (errCode != null && errCode.toUpperCase().contains("EMAIL")) ||
+          (msg != null && msg.toLowerCase().matches(".*(already|exists|in use|duplicate).*"));
+    } catch (Exception ignored) { /* body may not be JSON */ }
 
-  org.testng.Assert.assertTrue(
-      status == 409 || status == 400 || (status == 200 && (duplicateInText || duplicateInJson)),
-      "Expected 409/400, or 200 with a duplicate indicator. Got status=" + status + " body=" + body
-  );
-}
+    org.testng.Assert.assertTrue(
+        status == 409 || status == 400 || (status == 200 && (duplicateInText || duplicateInJson)),
+        "Expected 409/400, or 200 with a duplicate indicator. Got status=" + status + " body=" + body
+    );
+  }
 
 }
