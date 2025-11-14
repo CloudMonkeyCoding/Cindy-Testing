@@ -54,6 +54,16 @@ public class MenuUITests extends BaseUi {
   private By quantityModal() { return By.id("quantityModal"); }
   private By paginationControls() { return By.id("paginationControls"); }
 
+  private WebElement firstNonAllCategory(List<WebElement> pills) {
+    for (WebElement pill : pills) {
+      String category = pill.getAttribute("data-category");
+      if (category != null && !category.equalsIgnoreCase("all")) {
+        return pill;
+      }
+    }
+    return null;
+  }
+
   @Test(priority = 1)
   public void menuPage_coreComponentsVisible() {
     openMenuPage();
@@ -86,14 +96,7 @@ public class MenuUITests extends BaseUi {
     }
 
     WebElement allPill = pills.get(0);
-    WebElement otherPill = null;
-    for (WebElement pill : pills) {
-      String category = pill.getAttribute("data-category");
-      if (category != null && !category.equalsIgnoreCase("all")) {
-        otherPill = pill;
-        break;
-      }
-    }
+    final WebElement otherPill = firstNonAllCategory(pills);
 
     if (otherPill == null) {
       throw new SkipException("Only the 'All' category is available; skipping filter validation.");
