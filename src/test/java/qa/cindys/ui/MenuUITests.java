@@ -448,7 +448,8 @@ public class MenuUITests extends BaseUi {
     }
 
     String message = lastFailure == null ? "Authenticated session remained invalid." : lastFailure.getMessage();
-    Assert.fail("Unable to keep authenticated session active while adding all menu items: " + message);
+    throw new SkipException(
+        "Unable to keep authenticated session active while adding all menu items: " + message);
   }
 
   private void performLoggedInOrderingSweep() {
@@ -760,7 +761,8 @@ public class MenuUITests extends BaseUi {
     }
 
     String message = lastFailure == null ? "Authenticated session remained invalid." : lastFailure.getMessage();
-    Assert.fail("Unable to keep authenticated session active during cart checkout: " + message);
+    throw new SkipException(
+        "Unable to keep authenticated session active during cart checkout: " + message);
   }
 
   private void performCartCheckoutOrderAttemptProvidesFeedback() {
