@@ -6,6 +6,7 @@ import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.StaleElementReferenceException;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -56,8 +57,13 @@ public class MenuUITests extends BaseUi {
   private By favoriteButtons() { return By.cssSelector("#menuGrid .menu-item .favorite-btn"); }
   private By addButtons() { return By.cssSelector("#menuGrid .menu-item:not(.out-of-stock) .add-btn"); }
   private By quantityModal() { return By.id("quantityModal"); }
+  private By confirmAddButton() { return By.id("confirmAdd"); }
   private By paginationControls() { return By.id("paginationControls"); }
   private By nextPageButton() { return By.id("nextPage"); }
+  private By loginEmail() { return By.cssSelector("#email, [data-testid='email']"); }
+  private By loginPassword() { return By.cssSelector("#password, [data-testid='password']"); }
+  private By loginSubmit() { return By.cssSelector("form button[type='submit'], [data-testid='sign-in']"); }
+  private By loginErrorBanner() { return By.cssSelector("#errorMessage, [data-testid='error'], .error-message"); }
 
   private WebElement firstNonAllCategory(List<WebElement> pills) {
     for (WebElement pill : pills) {
@@ -327,6 +333,151 @@ public class MenuUITests extends BaseUi {
     Assert.assertFalse(evaluatedProducts.isEmpty(), "Expected to evaluate at least one menu item for ordering attempts.");
   }
 
+  @Test(priority = 7, dependsOnMethods = "menuPage_coreComponentsVisible")
+  public void orderingEachMenuItem_loggedInAddsToCart() {
+    loginAndOpenMenu();
+    waitForToastToHide();
+
+    Set<String> processedProducts = new LinkedHashSet<>();
+    int pageSafety = 0;
+    int inStockAttempted = 0;
+    int successfulAdds = 0;
+
+    while (true) {
+      List<WebElement> cards = uiWait(10).until(d -> {
+        List<WebElement> items = d.findElements(menuCards());
+        if (!items.isEmpty()) {
+          return items;
+        }
+        return isVisible(menuEmpty()) ? items : null;
+      });
+
+      if (cards == null || cards.isEmpty()) {
+        throw new SkipException("Menu grid is empty; nothing to add while authenticated.");
+      }
+
+      List<CardLocator> locators = captureCardLocators(cards);
+
+      for (CardLocator locator : locators) {
+        String identifier = locator.identifier();
+        if (processedProducts.contains(identifier)) {
+          continue;
+        }
+
+        WebElement card = locateCard(locator);
+        if (card == null) {
+          continue;
+        }
+
+        processedProducts.add(identifier);
+
+        int retries = 0;
+        while (true) {
+          try {
+            WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
+            String addLabel = addBtn.getText() == null ? "" : addBtn.getText().trim().toLowerCase();
+            boolean inStock = addBtn.isEnabled() && !hasClass(card, "out-of-stock") && !addLabel.contains("unavailable");
+
+            if (!inStock) {
+              String stockText = "";
+              try {
+                WebElement stockLabel = card.findElement(By.cssSelector(".price-section .stock"));
+                stockText = stockLabel.getText().trim().toLowerCase();
+              } catch (NoSuchElementException ignored) {
+                // rely on button state when stock label is missing
+              }
+
+              boolean unavailableIndicated = addLabel.contains("unavailable")
+                  || stockText.contains("out of stock")
+                  || stockText.contains("stock: 0")
+                  || hasClass(card, "out-of-stock")
+                  || !addBtn.isEnabled();
+
+              Assert.assertTrue(unavailableIndicated,
+                  "Disabled ordering state should be reflected for product " + identifier + ".");
+              break;
+            }
+
+            inStockAttempted++;
+
+            waitForToastToHide();
+            clickElement(addBtn);
+
+            try {
+              waitForModalVisible();
+            } catch (TimeoutException ex) {
+              throw new AssertionError("Expected quantity modal to appear for product " + identifier + " while logged in.", ex);
+            }
+
+            WebElement confirmBtn = uiWait(6).until(ExpectedConditions.elementToBeClickable(confirmAddButton()));
+            Assert.assertTrue(confirmBtn.isEnabled(),
+                "Confirm add button should be enabled for in-stock product " + identifier + ".");
+
+            clickElement(confirmBtn);
+
+            String message = waitForToastMessage();
+            String lowered = message.toLowerCase();
+            Assert.assertFalse(lowered.contains("sign in"),
+                "Authenticated add-to-cart should not prompt sign-in for product " + identifier + ". Toast: " + message);
+
+            String tone = currentToastTone();
+            Assert.assertTrue("success".equalsIgnoreCase(tone) || "warn".equalsIgnoreCase(tone),
+                "Expected success or warn tone after adding product " + identifier + ". Actual tone: " + tone + ".");
+
+            waitForModalHidden();
+            waitForToastToHide();
+            successfulAdds++;
+            break;
+          } catch (StaleElementReferenceException ex) {
+            if (retries++ >= 2) {
+              throw ex;
+            }
+            card = locateCard(locator);
+            if (card == null) {
+              break;
+            }
+          }
+        }
+      }
+
+      if (!isPaginationVisible()) {
+        break;
+      }
+
+      WebElement nextPage = driver.findElement(nextPageButton());
+      boolean nextDisabled = nextPage == null
+          || nextPage.getAttribute("disabled") != null
+          || !nextPage.isEnabled();
+
+      if (nextDisabled) {
+        break;
+      }
+
+      String previousSignature = pageSignature(locators);
+      clickElement(nextPage);
+
+      uiWait(8).until(d -> {
+        List<WebElement> newCards = d.findElements(menuCards());
+        if (newCards.isEmpty()) {
+          return false;
+        }
+        return !pageSignature(captureCardLocators(newCards)).equals(previousSignature);
+      });
+
+      pageSafety++;
+      if (pageSafety > 12) {
+        throw new SkipException("Pagination did not settle after iterating through multiple pages while logged in.");
+      }
+    }
+
+    if (inStockAttempted == 0) {
+      throw new SkipException("No in-stock products were available to add while authenticated.");
+    }
+
+    Assert.assertTrue(successfulAdds > 0,
+        "Expected to add at least one product to the cart while authenticated. Attempts: " + inStockAttempted);
+  }
+
   private void clearSearch(WebElement input) {
     input.sendKeys(Keys.chord(Keys.CONTROL, "a"));
     input.sendKeys(Keys.chord(Keys.COMMAND, "a"));
@@ -394,6 +545,28 @@ public class MenuUITests extends BaseUi {
       }
       String classes = elements.get(0).getAttribute("class");
       return classes == null || !classes.contains("show");
+    });
+  }
+
+  private void waitForModalVisible() {
+    uiWait(10).until(d -> {
+      try {
+        WebElement modal = d.findElement(quantityModal());
+        return hasClass(modal, "show");
+      } catch (NoSuchElementException ignored) {
+        return false;
+      }
+    });
+  }
+
+  private void waitForModalHidden() {
+    uiWait(8).until(d -> {
+      try {
+        WebElement modal = d.findElement(quantityModal());
+        return !hasClass(modal, "show");
+      } catch (NoSuchElementException ignored) {
+        return true;
+      }
     });
   }
 
@@ -608,5 +781,56 @@ public class MenuUITests extends BaseUi {
       current = current.getCause();
     }
     return false;
+  }
+
+  private void loginAndOpenMenu() {
+    try {
+      driver.get(loginUrl());
+    } catch (WebDriverException ex) {
+      if (isConnectionRefused(ex)) {
+        throw new SkipException("Skipping authenticated menu test because the login page is unreachable: " + loginUrl(), ex);
+      }
+      throw ex;
+    }
+
+    waitForDocumentReady(Duration.ofSeconds(12));
+
+    WebElement emailField;
+    WebElement passwordField;
+    WebElement submitButton;
+    try {
+      emailField = uiWait(12).until(ExpectedConditions.visibilityOfElementLocated(loginEmail()));
+      passwordField = driver.findElement(loginPassword());
+      submitButton = driver.findElement(loginSubmit());
+    } catch (TimeoutException ex) {
+      throw new SkipException("Login form did not render the expected fields; skipping authenticated ordering test.", ex);
+    }
+
+    emailField.clear();
+    emailField.sendKeys(VALID_EMAIL);
+    passwordField.clear();
+    passwordField.sendKeys(VALID_PASSWORD);
+    submitButton.click();
+
+    try {
+      uiWait(15).until(d -> !d.getCurrentUrl().toLowerCase().contains("login"));
+    } catch (TimeoutException ex) {
+      String errorText = textIfPresent(loginErrorBanner());
+      if (!errorText.isEmpty()) {
+        throw new SkipException("Login failed while preparing authenticated ordering test: " + errorText, ex);
+      }
+      throw new SkipException("Unable to confirm login success; skipping authenticated ordering test.", ex);
+    }
+
+    openMenuPage();
+  }
+
+  private String textIfPresent(By locator) {
+    try {
+      String text = driver.findElement(locator).getText();
+      return text == null ? "" : text.trim();
+    } catch (NoSuchElementException ignored) {
+      return "";
+    }
   }
 }
