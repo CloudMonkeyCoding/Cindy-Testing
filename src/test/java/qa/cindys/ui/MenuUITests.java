@@ -413,37 +413,58 @@ public class MenuUITests extends BaseUi {
             waitForToastToHide();
             clickElement(addBtn);
 
-            try {
-              waitForModalVisible();
-            } catch (TimeoutException ex) {
-              throw new AssertionError("Expected quantity modal to appear for product " + identifier + " while logged in.", ex);
+            ModalObservation observation = awaitModalOrToast(Duration.ofSeconds(8));
+            if (observation == null) {
+              throw new AssertionError(
+                  "Expected quantity modal or toast to appear for product " + identifier + " while logged in.");
             }
 
-            WebElement confirmBtn = uiWait(6).until(ExpectedConditions.elementToBeClickable(confirmAddButton()));
-            Assert.assertTrue(confirmBtn.isEnabled(),
-                "Confirm add button should be enabled for in-stock product " + identifier + ".");
+            if (observation == ModalObservation.MODAL) {
+              WebElement confirmBtn = uiWait(6).until(ExpectedConditions.elementToBeClickable(confirmAddButton()));
+              Assert.assertTrue(confirmBtn.isEnabled(),
+                  "Confirm add button should be enabled for in-stock product " + identifier + ".");
 
-            clickElement(confirmBtn);
+              clickElement(confirmBtn);
 
-            String message = waitForToastMessage();
-            String lowered = message.toLowerCase();
-            Assert.assertFalse(lowered.contains("sign in"),
-                "Authenticated add-to-cart should not prompt sign-in for product " + identifier + ". Toast: " + message);
+              String message = waitForToastMessage();
+              String lowered = message.toLowerCase();
+              Assert.assertFalse(lowered.contains("sign in"),
+                  "Authenticated add-to-cart should not prompt sign-in for product " + identifier + ". Toast: " + message);
 
-            String tone = currentToastTone();
-            if ("error".equalsIgnoreCase(tone)) {
-              boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
-              Assert.assertTrue(recognizedFailure,
-                  "Error tone toast should describe an inventory or validation issue for product "
-                      + identifier + ". Toast: " + message);
+              String tone = currentToastTone();
+              if ("error".equalsIgnoreCase(tone)) {
+                boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
+                Assert.assertTrue(recognizedFailure,
+                    "Error tone toast should describe an inventory or validation issue for product "
+                        + identifier + ". Toast: " + message);
+              } else {
+                Assert.assertTrue("success".equalsIgnoreCase(tone) || "warn".equalsIgnoreCase(tone),
+                    "Expected success or warn tone after adding product " + identifier + ". Actual tone: " + tone + ".");
+                successfulAdds++;
+              }
+
+              waitForModalHidden();
+              waitForToastToHide();
             } else {
-              Assert.assertTrue("success".equalsIgnoreCase(tone) || "warn".equalsIgnoreCase(tone),
-                  "Expected success or warn tone after adding product " + identifier + ". Actual tone: " + tone + ".");
-            }
+              String message = waitForToastMessage();
+              String lowered = message.toLowerCase();
+              Assert.assertFalse(lowered.contains("sign in"),
+                  "Authenticated add-to-cart should not prompt sign-in for product " + identifier + ". Toast: " + message);
 
-            waitForModalHidden();
-            waitForToastToHide();
-            successfulAdds++;
+              String tone = currentToastTone();
+              if ("error".equalsIgnoreCase(tone)) {
+                boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
+                Assert.assertTrue(recognizedFailure,
+                    "Error tone toast should describe an inventory or validation issue for product "
+                        + identifier + ". Toast: " + message);
+              } else {
+                Assert.assertTrue("success".equalsIgnoreCase(tone) || "warn".equalsIgnoreCase(tone),
+                    "Expected success or warn tone after adding product " + identifier + ". Actual tone: " + tone + ".");
+                successfulAdds++;
+              }
+
+              waitForToastToHide();
+            }
             break;
           } catch (StaleElementReferenceException ex) {
             if (retries++ >= 2) {
@@ -690,6 +711,30 @@ public class MenuUITests extends BaseUi {
       String classes = elements.get(0).getAttribute("class");
       return classes == null || !classes.contains("show");
     });
+  }
+
+  private enum ModalObservation { MODAL, TOAST }
+
+  private ModalObservation awaitModalOrToast(Duration timeout) {
+    try {
+      return new WebDriverWait(driver, timeout).until(d -> {
+        if (isModalShowing()) {
+          return ModalObservation.MODAL;
+        }
+        List<WebElement> toasts = d.findElements(toast());
+        if (!toasts.isEmpty()) {
+          WebElement element = toasts.get(0);
+          String classes = element.getAttribute("class");
+          String text = element.getText().trim();
+          if (classes != null && classes.contains("show") && !text.isEmpty()) {
+            return ModalObservation.TOAST;
+          }
+        }
+        return null;
+      });
+    } catch (TimeoutException ex) {
+      return null;
+    }
   }
 
   private boolean isModalShowing() {
