@@ -14,7 +14,9 @@ import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MenuUITests extends BaseUi {
 
@@ -53,6 +55,7 @@ public class MenuUITests extends BaseUi {
   private By addButtons() { return By.cssSelector("#menuGrid .menu-item:not(.out-of-stock) .add-btn"); }
   private By quantityModal() { return By.id("quantityModal"); }
   private By paginationControls() { return By.id("paginationControls"); }
+  private By nextPageButton() { return By.id("nextPage"); }
 
   private WebElement firstNonAllCategory(List<WebElement> pills) {
     for (WebElement pill : pills) {
@@ -201,6 +204,104 @@ public class MenuUITests extends BaseUi {
     Assert.assertFalse(hasClass(modal, "show"), "Quantity modal should remain hidden when not authenticated.");
   }
 
+  @Test(priority = 6, dependsOnMethods = "menuPage_coreComponentsVisible")
+  public void orderingEachMenuItem_requiresSignInOrMarksUnavailable() {
+    openMenuPage();
+    waitForToastToHide();
+
+    Set<String> evaluatedProducts = new LinkedHashSet<>();
+    int pageSafety = 0;
+
+    while (true) {
+      List<WebElement> cards = uiWait(10).until(d -> {
+        List<WebElement> items = d.findElements(menuCards());
+        if (!items.isEmpty()) {
+          return items;
+        }
+        return isVisible(menuEmpty()) ? items : null;
+      });
+
+      if (cards == null || cards.isEmpty()) {
+        throw new SkipException("Menu grid is empty; nothing to evaluate for ordering.");
+      }
+
+      for (WebElement card : cards) {
+        String identifier = cardIdentifier(card);
+        if (!evaluatedProducts.add(identifier)) {
+          continue;
+        }
+
+        WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
+        String addLabel = addBtn.getText() == null ? "" : addBtn.getText().trim().toLowerCase();
+        boolean addEnabled = addBtn.isEnabled() && !hasClass(card, "out-of-stock") && !addLabel.contains("unavailable");
+
+        if (addEnabled) {
+          waitForToastToHide();
+          addBtn.click();
+
+          String message = waitForToastMessage();
+          Assert.assertTrue(message.toLowerCase().contains("sign in"),
+              "Clicking Add to Cart should prompt sign-in when unauthenticated for product " + identifier + ".");
+          Assert.assertEquals(currentToastTone(), "warn",
+              "Add-to-cart toast should warn about authentication for product " + identifier + ".");
+
+          waitForToastToHide();
+
+          WebElement modal = driver.findElement(quantityModal());
+          Assert.assertFalse(hasClass(modal, "show"),
+              "Quantity modal should stay hidden without auth for product " + identifier + ".");
+        } else {
+          String stockText = "";
+          try {
+            WebElement stockLabel = card.findElement(By.cssSelector(".price-section .stock"));
+            stockText = stockLabel.getText().trim().toLowerCase();
+          } catch (NoSuchElementException ignored) {
+            // rely on button state when stock label is missing
+          }
+
+          boolean unavailableIndicated = addLabel.contains("unavailable")
+              || stockText.contains("out of stock")
+              || stockText.contains("stock: 0")
+              || !addBtn.isEnabled();
+
+          Assert.assertTrue(unavailableIndicated,
+              "Disabled ordering state should be reflected for product " + identifier + ".");
+        }
+      }
+
+      if (!isPaginationVisible()) {
+        break;
+      }
+
+      WebElement nextPage = driver.findElement(nextPageButton());
+      boolean nextDisabled = nextPage == null
+          || nextPage.getAttribute("disabled") != null
+          || !nextPage.isEnabled();
+
+      if (nextDisabled) {
+        break;
+      }
+
+      String previousSignature = pageSignature(cards);
+      nextPage.click();
+
+      uiWait(8).until(d -> {
+        List<WebElement> newCards = d.findElements(menuCards());
+        if (newCards.isEmpty()) {
+          return false;
+        }
+        return !pageSignature(newCards).equals(previousSignature);
+      });
+
+      pageSafety++;
+      if (pageSafety > 12) {
+        throw new SkipException("Pagination did not settle after iterating through multiple pages.");
+      }
+    }
+
+    Assert.assertFalse(evaluatedProducts.isEmpty(), "Expected to evaluate at least one menu item for ordering attempts.");
+  }
+
   private void clearSearch(WebElement input) {
     input.sendKeys(Keys.chord(Keys.CONTROL, "a"));
     input.sendKeys(Keys.chord(Keys.COMMAND, "a"));
@@ -289,6 +390,53 @@ public class MenuUITests extends BaseUi {
   private String currentToastTone() {
     String tone = driver.findElement(toast()).getAttribute("data-tone");
     return tone == null ? "" : tone;
+  }
+
+  private boolean isPaginationVisible() {
+    try {
+      WebElement controls = driver.findElement(paginationControls());
+      if (controls.getAttribute("hidden") != null) {
+        return false;
+      }
+      return controls.isDisplayed();
+    } catch (NoSuchElementException ex) {
+      return false;
+    }
+  }
+
+  private String cardIdentifier(WebElement card) {
+    String id = card.getAttribute("data-product-id");
+    if (id != null) {
+      id = id.trim();
+      if (!id.isEmpty()) {
+        return "id:" + id;
+      }
+    }
+
+    try {
+      WebElement title = card.findElement(By.cssSelector(".menu-content h3"));
+      String name = title.getText().trim();
+      if (!name.isEmpty()) {
+        return "name:" + name;
+      }
+    } catch (NoSuchElementException ignored) {
+      // fall through to generated identifier
+    }
+
+    return "card:" + Integer.toHexString(System.identityHashCode(card));
+  }
+
+  private String pageSignature(List<WebElement> cards) {
+    if (cards == null || cards.isEmpty()) {
+      return "empty";
+    }
+
+    StringBuilder builder = new StringBuilder();
+    int sample = Math.min(3, cards.size());
+    for (int i = 0; i < sample; i++) {
+      builder.append(cardIdentifier(cards.get(i))).append('|');
+    }
+    return builder.toString();
   }
 
   private boolean isConnectionRefused(Throwable error) {
