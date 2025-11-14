@@ -3,7 +3,6 @@ package qa.cindys.api;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.testng.Assert;
-import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -36,20 +35,22 @@ public class AuthApiTests {
     return trimmed.isEmpty() ? fallback : trimmed;
   }
 
-  private void assumeEndpointReachable(String path) {
+  private void ensureEndpointReachable(String path) {
     String target = url(path);
     try {
       java.net.URL url = new java.net.URL(target);
-      java.net.URLConnection conn = url.openConnection();
-      conn.setConnectTimeout(2000);
-      conn.setReadTimeout(2000);
-      if (conn instanceof java.net.HttpURLConnection http) {
-        http.setRequestMethod("HEAD");
-        http.connect();
-        http.disconnect();
+      java.net.URLConnection raw = url.openConnection();
+      raw.setConnectTimeout(3000);
+      raw.setReadTimeout(3000);
+      if (raw instanceof java.net.HttpURLConnection http) {
+        http.setRequestMethod("GET");
+        int status = http.getResponseCode();
+        if (status >= 400) {
+          Assert.fail("Endpoint " + target + " responded with status " + status);
+        }
       }
-    } catch (Exception ex) {
-      throw new SkipException("Skipping API test because endpoint is unreachable: " + target, ex);
+    } catch (java.io.IOException ex) {
+      Assert.fail("Unable to reach endpoint " + target + ": " + ex.getMessage(), ex);
     }
   }
 
@@ -62,21 +63,17 @@ public class AuthApiTests {
 
   @Test
   public void wrongPassword_returnsFriendlyError() {
-    assumeEndpointReachable(loginEndpoint);
+    ensureEndpointReachable(loginEndpoint);
     String email = System.getProperty("validEmail", "test@example.com");
 
     // Send JSON; many PHP stacks also accept x-www-form-urlencoded—switch if needed.
     Response res;
-    try {
-      res =
-        given()
-          .contentType("application/json")
-          .body("{\"email\":\"" + email + "\",\"password\":\"wrong\"}")
-        .when()
-          .post(url(loginEndpoint));
-    } catch (RuntimeException ex) {
-      throw new SkipException("Skipping API test because POST failed: " + ex.getMessage(), ex);
-    }
+    res =
+      given()
+        .contentType("application/json")
+        .body("{\"email\":\"" + email + "\",\"password\":\"wrong\"}")
+      .when()
+        .post(url(loginEndpoint));
 
     // First assert we actually hit something (not null host / wrong route)
     Assert.assertTrue(res.getStatusCode() > 0, "No HTTP response received.");
@@ -93,20 +90,16 @@ public class AuthApiTests {
 
   @Test
   public void duplicateEmail_signupBlocked409() {
-    assumeEndpointReachable(registerEndpoint);
+    ensureEndpointReachable(registerEndpoint);
     String email = System.getProperty("validEmail","test@example.com");
 
     io.restassured.response.Response resp;
-    try {
-      resp =
-          given()
-            .contentType("application/json")
-            .body("{\"email\":\""+email+"\",\"password\":\"XyZ!2345\",\"name\":\"Dup\"}")
-          .when()
-            .post(url(registerEndpoint));
-    } catch (RuntimeException ex) {
-      throw new SkipException("Skipping API test because POST failed: " + ex.getMessage(), ex);
-    }
+    resp =
+        given()
+          .contentType("application/json")
+          .body("{\"email\":\""+email+"\",\"password\":\"XyZ!2345\",\"name\":\"Dup\"}")
+        .when()
+          .post(url(registerEndpoint));
 
     int status = resp.statusCode();
     String body  = resp.asString().trim().toLowerCase();
