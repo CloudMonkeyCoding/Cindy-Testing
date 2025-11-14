@@ -10,6 +10,7 @@ import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
 import org.testng.SkipException;
@@ -49,6 +50,24 @@ public class MenuUITests extends BaseUi {
         || !d.findElements(categoryButtons()).isEmpty());
   }
 
+  private void openCartPage() {
+    try {
+      driver.get(cartUrl());
+    } catch (WebDriverException ex) {
+      if (isConnectionRefused(ex)) {
+        throw new SkipException("Skipping cart checkout test because the page is unreachable: " + cartUrl(), ex);
+      }
+      throw ex;
+    }
+
+    waitForDocumentReady(Duration.ofSeconds(12));
+
+    WebDriverWait wait = uiWait(12);
+    wait.until(ExpectedConditions.presenceOfElementLocated(cartSection()));
+    wait.until(d -> !d.findElements(cartItems()).isEmpty()
+        || !d.findElements(cartEmptyNote()).isEmpty());
+  }
+
   private By menuGrid() { return By.id("menuGrid"); }
   private By menuCards() { return By.cssSelector("#menuGrid .menu-item"); }
   private By menuEmpty() { return By.id("menuEmpty"); }
@@ -71,6 +90,20 @@ public class MenuUITests extends BaseUi {
   private By increaseQuantityButton() { return By.id("increaseQty"); }
   private By cancelAddButton() { return By.id("cancelAdd"); }
   private By modalSubtitle() { return By.id("modalSubtitle"); }
+  private By cartSection() { return By.id("cart-section"); }
+  private By cartItemsContainer() { return By.id("cart-items"); }
+  private By cartItems() { return By.cssSelector("#cart-items .cart-item"); }
+  private By cartEmptyNote() { return By.cssSelector("#cart-items .empty-note"); }
+  private By cartProceedButton() { return By.cssSelector("#cart-section .primary-btn"); }
+  private By checkoutSection() { return By.id("checkout-section"); }
+  private By checkoutSummaryItems() { return By.cssSelector("#checkout-items .summary-item"); }
+  private By checkoutNameField() { return By.id("name"); }
+  private By checkoutNameEditButton() { return By.id("edit-name"); }
+  private By checkoutNameDoneButton() { return By.id("done-name"); }
+  private By checkoutOrderTypeSelect() { return By.id("order-type"); }
+  private By checkoutPaymentSelect() { return By.id("mop"); }
+  private By checkoutPlaceOrderButton() { return By.id("place-order-btn"); }
+  private By checkoutConfirmationMessage() { return By.id("confirmationMsg"); }
 
   private static final Pattern MAX_AVAILABLE_PATTERN = Pattern.compile("maximum available:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
   private static final Pattern IN_CART_PATTERN = Pattern.compile("in cart:\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -643,6 +676,271 @@ public class MenuUITests extends BaseUi {
     }
   }
 
+  @Test(priority = 9, dependsOnMethods = "menuPage_coreComponentsVisible")
+  public void cartCheckout_orderAttemptProvidesFeedback() {
+    loginAndOpenMenu();
+    waitForToastToHide();
+
+    CartAddResult seeded = seedCartWithInStockItem();
+
+    waitForToastToHide();
+
+    openCartPage();
+
+    List<WebElement> cartRows = uiWait(12).until(d -> {
+      List<WebElement> items = d.findElements(cartItems());
+      if (!items.isEmpty()) {
+        return items;
+      }
+      List<WebElement> empty = d.findElements(cartEmptyNote());
+      return empty.isEmpty() ? null : items;
+    });
+
+    if (cartRows == null || cartRows.isEmpty()) {
+      throw new SkipException("Cart did not contain items after seeding; checkout flow unavailable.");
+    }
+
+    if (seeded.productId() != null) {
+      boolean cartContainsSeed = cartRows.stream()
+          .anyMatch(row -> seeded.productId().equals(trimToNull(row.getAttribute("data-product"))));
+      Assert.assertTrue(cartContainsSeed,
+          "Cart should include the product added earlier (id=" + seeded.productId() + ").");
+    } else if (seeded.productName() != null) {
+      String expectedName = seeded.productName().toLowerCase(Locale.ROOT);
+      boolean cartContainsSeed = cartRows.stream().anyMatch(row -> {
+        try {
+          WebElement nameEl = row.findElement(By.cssSelector(".item-details b"));
+          String text = nameEl.getText();
+          return text != null && text.trim().toLowerCase(Locale.ROOT).contains(expectedName);
+        } catch (NoSuchElementException ex) {
+          return false;
+        }
+      });
+      Assert.assertTrue(cartContainsSeed,
+          "Cart should list the product added earlier (name contains '" + seeded.productName() + "').");
+    }
+
+    WebElement proceedBtn = uiWait(8).until(ExpectedConditions.elementToBeClickable(cartProceedButton()));
+    clickElement(proceedBtn);
+
+    uiWait(10).until(d -> {
+      boolean sectionVisible = isVisible(checkoutSection());
+      boolean hasSummary = !d.findElements(checkoutSummaryItems()).isEmpty();
+      return sectionVisible && hasSummary;
+    });
+
+    List<WebElement> summaryItems = driver.findElements(checkoutSummaryItems());
+    Assert.assertFalse(summaryItems.isEmpty(), "Checkout summary should list at least one item.");
+
+    if (seeded.productName() != null) {
+      String expectedName = seeded.productName().toLowerCase(Locale.ROOT);
+      boolean summaryContainsSeed = summaryItems.stream().anyMatch(item -> {
+        String text = item.getText();
+        return text != null && text.toLowerCase(Locale.ROOT).contains(expectedName);
+      });
+      Assert.assertTrue(summaryContainsSeed,
+          "Checkout summary should include the product added earlier (name contains '" + seeded.productName() + "').");
+    }
+
+    WebElement nameField = uiWait(8).until(ExpectedConditions.visibilityOfElementLocated(checkoutNameField()));
+    WebElement editButton = textElementIfPresent(checkoutNameEditButton());
+    if (editButton != null && editButton.isDisplayed()) {
+      clickElement(editButton);
+      uiWait(6).until(d -> !Boolean.TRUE.equals(Boolean.valueOf(d.findElement(checkoutNameField()).getAttribute("readonly"))));
+    }
+
+    nameField.sendKeys(Keys.chord(Keys.CONTROL, "a"));
+    nameField.sendKeys(Keys.chord(Keys.COMMAND, "a"));
+    nameField.sendKeys(Keys.DELETE);
+    nameField.clear();
+    nameField.sendKeys("Automated Checkout Tester");
+
+    WebElement doneButton = textElementIfPresent(checkoutNameDoneButton());
+    if (doneButton != null && doneButton.isDisplayed()) {
+      clickElement(doneButton);
+      uiWait(4).until(d -> Boolean.TRUE.equals(Boolean.valueOf(d.findElement(checkoutNameField()).getAttribute("readonly"))));
+    }
+
+    WebElement orderTypeSelect = uiWait(8).until(ExpectedConditions.visibilityOfElementLocated(checkoutOrderTypeSelect()));
+    Select orderType = new Select(orderTypeSelect);
+    orderType.selectByVisibleText("Pick up");
+
+    WebElement paymentSelectEl = uiWait(8).until(d -> {
+      WebElement element = d.findElement(checkoutPaymentSelect());
+      List<WebElement> options = element.findElements(By.tagName("option"));
+      boolean hasChoice = options.stream().anyMatch(opt -> {
+        String value = opt.getAttribute("value");
+        return value != null && !value.trim().isEmpty();
+      });
+      return element.isEnabled() && hasChoice ? element : null;
+    });
+
+    Select paymentSelect = new Select(paymentSelectEl);
+    try {
+      paymentSelect.selectByVisibleText("Cash on Pick Up");
+    } catch (NoSuchElementException ex) {
+      for (WebElement option : paymentSelect.getOptions()) {
+        String value = option.getAttribute("value");
+        if (value != null && !value.trim().isEmpty()) {
+          paymentSelect.selectByVisibleText(option.getText());
+          break;
+        }
+      }
+    }
+
+    WebElement placeOrderBtn = uiWait(8).until(ExpectedConditions.elementToBeClickable(checkoutPlaceOrderButton()));
+    String initialUrl = driver.getCurrentUrl();
+    clickElement(placeOrderBtn);
+
+    OrderAttemptResult outcome = awaitOrderAttempt(Duration.ofSeconds(18), initialUrl);
+    Assert.assertNotNull(outcome, "Expected a redirect or confirmation message after attempting to place an order.");
+
+    if (outcome.type() == OrderOutcomeType.REDIRECT) {
+      Assert.assertTrue(outcome.targetUrl().contains("orderDetails"),
+          "Successful checkout should redirect to order details. Actual URL: " + outcome.targetUrl());
+    } else {
+      Assert.assertFalse(outcome.message().isBlank(),
+          "Confirmation message should explain the result of the order attempt.");
+      if (outcome.isError()) {
+        String lowered = outcome.message().toLowerCase(Locale.ROOT);
+        Assert.assertTrue(lowered.contains("order")
+                || lowered.contains("please")
+                || lowered.contains("unable")
+                || lowered.contains("failed"),
+            "Error message should describe why the order could not be completed. Message: " + outcome.message());
+      }
+    }
+  }
+
+  private CartAddResult seedCartWithInStockItem() {
+    List<WebElement> cards = uiWait(12).until(d -> {
+      List<WebElement> items = d.findElements(menuCards());
+      if (!items.isEmpty()) {
+        return items;
+      }
+      return isVisible(menuEmpty()) ? items : null;
+    });
+
+    if (cards == null || cards.isEmpty()) {
+      throw new SkipException("Menu grid is empty; cannot seed cart for checkout test.");
+    }
+
+    List<CardLocator> locators = captureCardLocators(cards);
+
+    for (CardLocator locator : locators) {
+      WebElement card = locateCard(locator);
+      if (card == null) {
+        continue;
+      }
+
+      int retries = 0;
+      while (true) {
+        try {
+          WebElement addBtn = card.findElement(By.cssSelector(".add-btn"));
+          String addLabel = addBtn.getText() == null ? "" : addBtn.getText().trim().toLowerCase(Locale.ROOT);
+          boolean inStock = addBtn.isEnabled() && !hasClass(card, "out-of-stock") && !addLabel.contains("unavailable");
+
+          if (!inStock) {
+            break;
+          }
+
+          String productName = locator.title();
+          if (productName == null) {
+            try {
+              WebElement title = card.findElement(By.cssSelector(".menu-content h3"));
+              productName = trimToNull(title.getText());
+            } catch (NoSuchElementException ignored) {
+              // leave as null
+            }
+          }
+
+          waitForToastToHide();
+          clickElement(addBtn);
+
+          ModalObservation observation = awaitModalOrToast(Duration.ofSeconds(8));
+          if (observation == null) {
+            waitForToastToHide();
+            break;
+          }
+
+          if (observation == ModalObservation.MODAL) {
+            WebElement confirmBtn = uiWait(6).until(ExpectedConditions.elementToBeClickable(confirmAddButton()));
+            Assert.assertTrue(confirmBtn.isEnabled(),
+                "Confirm add button should be enabled while seeding cart for checkout test.");
+            clickElement(confirmBtn);
+          }
+
+          String message = waitForToastMessage();
+          String lowered = message.toLowerCase(Locale.ROOT);
+          Assert.assertFalse(lowered.contains("sign in"),
+              "Authenticated add-to-cart should not require sign-in prompt while seeding cart. Toast: " + message);
+
+          String tone = currentToastTone();
+          if ("error".equalsIgnoreCase(tone)) {
+            boolean recognizedFailure = indicatesInventoryOrValidationIssue(message);
+            Assert.assertTrue(recognizedFailure,
+                "Unexpected error tone while seeding cart. Toast: " + message);
+            if (observation == ModalObservation.MODAL) {
+              waitForModalHidden();
+            }
+            waitForToastToHide();
+            break;
+          }
+
+          Assert.assertTrue(
+              "success".equalsIgnoreCase(tone)
+                  || "warn".equalsIgnoreCase(tone)
+                  || tone.isBlank(),
+              "Expected success or warn tone when seeding cart. Actual tone: " + tone + ".");
+
+          if (observation == ModalObservation.MODAL) {
+            waitForModalHidden();
+          }
+
+          waitForToastToHide();
+
+          return new CartAddResult(locator, locator.productId(), productName);
+        } catch (NoSuchElementException ignored) {
+          break;
+        } catch (StaleElementReferenceException ex) {
+          if (retries++ >= 2) {
+            throw ex;
+          }
+          card = locateCard(locator);
+          if (card == null) {
+            break;
+          }
+        }
+      }
+    }
+
+    throw new SkipException("Unable to add an in-stock product to seed the cart for checkout testing.");
+  }
+
+  private OrderAttemptResult awaitOrderAttempt(Duration timeout, String initialUrl) {
+    try {
+      return new WebDriverWait(driver, timeout).until(d -> {
+        String current = d.getCurrentUrl();
+        if (!current.equals(initialUrl) && current.contains("orderDetails")) {
+          return OrderAttemptResult.redirect(current);
+        }
+
+        WebElement confirmation = textElementIfPresent(checkoutConfirmationMessage());
+        if (confirmation != null) {
+          String text = confirmation.getText();
+          if (text != null && !text.trim().isEmpty()) {
+            boolean error = hasClass(confirmation, "error");
+            return OrderAttemptResult.message(text.trim(), error);
+          }
+        }
+
+        return null;
+      });
+    } catch (TimeoutException ex) {
+      return null;
+    }
+  }
+
   private void clearSearch(WebElement input) {
     input.sendKeys(Keys.chord(Keys.CONTROL, "a"));
     input.sendKeys(Keys.chord(Keys.COMMAND, "a"));
@@ -960,6 +1258,51 @@ public class MenuUITests extends BaseUi {
     }
   }
 
+  private static class CartAddResult {
+    private final CardLocator locator;
+    private final String productId;
+    private final String productName;
+
+    private CartAddResult(CardLocator locator, String productId, String productName) {
+      this.locator = locator;
+      this.productId = productId;
+      this.productName = productName;
+    }
+
+    private String productId() { return productId; }
+    private String productName() { return productName; }
+    private CardLocator locator() { return locator; }
+  }
+
+  private enum OrderOutcomeType { REDIRECT, MESSAGE }
+
+  private static class OrderAttemptResult {
+    private final OrderOutcomeType type;
+    private final String targetUrl;
+    private final String message;
+    private final boolean error;
+
+    private OrderAttemptResult(OrderOutcomeType type, String targetUrl, String message, boolean error) {
+      this.type = type;
+      this.targetUrl = targetUrl;
+      this.message = message == null ? "" : message;
+      this.error = error;
+    }
+
+    private static OrderAttemptResult redirect(String targetUrl) {
+      return new OrderAttemptResult(OrderOutcomeType.REDIRECT, targetUrl, "", false);
+    }
+
+    private static OrderAttemptResult message(String text, boolean error) {
+      return new OrderAttemptResult(OrderOutcomeType.MESSAGE, "", text, error);
+    }
+
+    private OrderOutcomeType type() { return type; }
+    private String targetUrl() { return targetUrl; }
+    private String message() { return message; }
+    private boolean isError() { return error; }
+  }
+
   private static class CardLocator {
     private final String productId;
     private final String titleText;
@@ -980,6 +1323,10 @@ public class MenuUITests extends BaseUi {
       }
       return "index:" + index;
     }
+
+    private String productId() { return productId; }
+
+    private String title() { return titleText; }
   }
 
   private boolean isConnectionRefused(Throwable error) {

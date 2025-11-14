@@ -30,6 +30,7 @@ public class BaseUi {
   protected final String BASE_URL        = propOrDefault("baseUrl",  "http://localhost:3000");
   protected final String LOGIN_PATH      = propOrDefault("loginPage","/UserSide/login.html");
   protected final String MENU_PATH       = propOrDefault("menuPage", "/UserSide/PRODUCT/MENU.php");
+  protected final String CART_PATH       = propOrDefault("cartPage", "/UserSide/CART/cart_checkout_page.php");
 
   // Test data (override with -DvalidEmail=... -DvalidPassword=... if you want)
   protected final String VALID_EMAIL       = propOrDefault("validEmail", "ejquancey@gmail.com");
@@ -41,6 +42,7 @@ public class BaseUi {
 
   protected String loginUrl() { return toAbsolute(LOGIN_PATH); }
   protected String menuUrl()  { return toAbsolute(MENU_PATH); }
+  protected String cartUrl()  { return toAbsolute(CART_PATH); }
   protected final String signup = System.getProperty("signupPage", "/UserSide/signup.html");
   protected String effectiveSignupUrl() { return BASE_URL + signup; }
 
